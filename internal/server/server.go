@@ -37,6 +37,11 @@ func (s *Server) Start(port int) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleLanding)
 	mux.HandleFunc("/health", s.handleHealth)
+	
+	// API routes
+	mux.HandleFunc("/api/status", s.handleAPIStatus)
+	mux.HandleFunc("/api/sites", s.handleAPISites)
+	mux.HandleFunc("/api/sites/", s.handleAPISite)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", port)
@@ -132,4 +137,105 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status":"healthy"}`))
+}
+
+// API handlers for remote execution
+func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"running","service":"sl-cli-daemon"}`))
+}
+
+func (s *Server) handleAPISites(w http.ResponseWriter, r *http.Request) {
+	sites, err := s.siteService.List()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	
+	// Convert to JSON manually to avoid extra dependencies
+	json := "["
+	for i, site := range sites {
+		if i > 0 {
+			json += ","
+		}
+		json += fmt.Sprintf(`{"slug":"%s","name":"%s"}`, 
+			site.Slug, site.Name)
+	}
+	json += "]"
+	w.Write([]byte(json))
+}
+
+func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
+	// Extract site slug from path
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/sites/"), "/")
+	slug := parts[0]
+	action := ""
+	if len(parts) > 1 {
+		action = parts[1]
+	}
+	
+	switch action {
+	case "versions":
+		s.handleAPISiteVersions(w, r, slug)
+	case "sync":
+		s.handleAPISiteSync(w, r, slug)
+	default:
+		s.handleAPISiteDetails(w, r, slug)
+	}
+}
+
+func (s *Server) handleAPISiteDetails(w http.ResponseWriter, r *http.Request, slug string) {
+	sites, err := s.siteService.List()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	// Find site by slug
+	var site *db.Site
+	for _, s := range sites {
+		if s.Slug == slug {
+			site = &s
+			break
+		}
+	}
+	
+	if site == nil {
+		http.Error(w, "Site not found", http.StatusNotFound)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json := fmt.Sprintf(`{"slug":"%s","name":"%s"}`,
+		site.Slug, site.Name)
+	w.Write([]byte(json))
+}
+
+func (s *Server) handleAPISiteVersions(w http.ResponseWriter, r *http.Request, slug string) {
+	versions, err := s.siteService.ListVersions(slug)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json := "["
+	for i, v := range versions {
+		if i > 0 {
+			json += ","
+		}
+		json += fmt.Sprintf(`{"version":"%s","comment":"%s","active":%t}`,
+			v.Version, v.Comment, v.IsActive)
+	}
+	json += "]"
+	w.Write([]byte(json))
+}
+
+func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug string) {
+	// This would handle sync operations
+	// For now, return success
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"success":true,"message":"sync endpoint placeholder"}`))
 }

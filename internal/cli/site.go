@@ -20,6 +20,15 @@ var siteListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all sites",
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+		
+		if target != "" {
+			// Remote execution
+			handleRemoteSiteList(target)
+			return
+		}
+		
+		// Local execution
 		if err := initializeDB(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 			os.Exit(1)
@@ -43,6 +52,10 @@ var siteListCmd = &cobra.Command{
 			fmt.Printf("%s\t%s\t%s\n", site.ID, site.Name, site.Slug)
 		}
 	},
+}
+
+func init() {
+	siteListCmd.Flags().String("target", "", "Remote target (host:port)")
 }
 
 // site create
