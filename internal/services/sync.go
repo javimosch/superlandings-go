@@ -209,13 +209,12 @@ type ProxySetup struct {
 
 // SetupProxy configures hotify-cli reverse proxy for a site
 func (s *SyncService) SetupProxy(setup ProxySetup) error {
-	// Call hotify-cli with backend-url
+	// Call hotify-cli without backend-url - let hotify manage the proxy
 	setupCmd := exec.Command("hotify-cli", "setup",
 		"--id", setup.SiteSlug,
 		"--name", setup.SiteSlug,
 		"--domain", setup.Domain,
 		"--port", "3100",
-		"--backend-url", setup.InternalURL,
 		"--cmd", "true", // placeholder
 	)
 
@@ -223,16 +222,17 @@ func (s *SyncService) SetupProxy(setup ProxySetup) error {
 		return fmt.Errorf("failed to setup hotify app: %w, output: %s", err, string(output))
 	}
 
-	// Setup Traefik (optional, may fail without sudo)
+	// Setup Traefik
 	traefikCmd := exec.Command("hotify-cli", "setup-traefik",
 		"--id", setup.SiteSlug,
 		"--challenge-type", "http",
 		"--local",
 	)
 
-	if err := traefikCmd.Run(); err != nil {
+	if output, err := traefikCmd.CombinedOutput(); err != nil {
 		// Traefik setup is optional, log warning but don't fail
 		fmt.Printf("Warning: Traefik setup failed (may require sudo): %v\n", err)
+		fmt.Printf("Output: %s\n", string(output))
 	}
 
 	return nil
