@@ -226,15 +226,17 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 	case "write":
 		s.handleAPISiteWrite(w, r, slug)
 	case "files":
-		s.handleAdminAPIFiles(w, r)
+		// Check if it's a file read: /sites/{slug}/files/{file}
+		if len(parts) > 2 {
+			filePath := strings.Join(parts[2:], "/")
+			s.handleAdminAPIFileRead(w, r, slug, filePath)
+			return
+		}
+		// Otherwise list files
+		s.handleAdminAPIFiles(w, r, slug)
 	case "admin":
 		s.handleAPISiteAdmin(w, r)
 	default:
-		// Check if it's a file read path (sites/{slug}/files/{path})
-		if strings.HasPrefix(action, "files/") {
-			s.handleAdminAPIFileRead(w, r)
-			return
-		}
 		s.handleAPISiteDetails(w, r, slug)
 	}
 }
@@ -527,10 +529,6 @@ func (s *Server) handleAPISiteWrite(w http.ResponseWriter, r *http.Request, slug
 		return
 	}
 	
-	if payload.Version == "" {
-		http.Error(w, "version is required", http.StatusBadRequest)
-		return
-	}
 	if payload.File == "" {
 		http.Error(w, "file is required", http.StatusBadRequest)
 		return
@@ -538,6 +536,23 @@ func (s *Server) handleAPISiteWrite(w http.ResponseWriter, r *http.Request, slug
 	if payload.Content == "" {
 		http.Error(w, "content is required", http.StatusBadRequest)
 		return
+	}
+	
+	// Default to active version if not specified
+	if payload.Version == "" {
+		site, err := s.siteService.GetBySlug(slug)
+		if err != nil {
+			http.Error(w, "Site not found", http.StatusNotFound)
+			return
+		}
+		
+		versionRepo := db.NewSiteVersionRepository()
+		version, err := versionRepo.GetActiveVersion(site.ID)
+		if err != nil {
+			http.Error(w, "No active version", http.StatusNotFound)
+			return
+		}
+		payload.Version = version.Version
 	}
 	
 	if err := s.siteService.WriteFile(slug, payload.Version, payload.File, payload.Content); err != nil {

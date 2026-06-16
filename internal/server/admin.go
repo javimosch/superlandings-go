@@ -407,12 +407,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 }
 
 // handleAdminAPIFiles lists files for the editor
-func (s *Server) handleAdminAPIFiles(w http.ResponseWriter, r *http.Request) {
-	// Extract site slug from path
-	path := strings.TrimPrefix(r.URL.Path, "/api/sites/")
-	parts := strings.Split(path, "/")
-	siteSlug := parts[0]
-
+func (s *Server) handleAdminAPIFiles(w http.ResponseWriter, r *http.Request, siteSlug string) {
 	// Get site
 	siteRepo := db.NewSiteRepository()
 	site, err := siteRepo.GetBySlug(siteSlug)
@@ -467,18 +462,7 @@ func (s *Server) handleAdminAPIFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAdminAPIFileRead reads a file for the editor
-func (s *Server) handleAdminAPIFileRead(w http.ResponseWriter, r *http.Request) {
-	// Extract site slug and file path from path
-	path := strings.TrimPrefix(r.URL.Path, "/api/sites/")
-	parts := strings.SplitN(path, "/", 3)
-	if len(parts) < 3 {
-		http.Error(w, "Invalid path", http.StatusBadRequest)
-		return
-	}
-
-	siteSlug := parts[0]
-	filePath := parts[2]
-
+func (s *Server) handleAdminAPIFileRead(w http.ResponseWriter, r *http.Request, siteSlug, filePath string) {
 	// Get site
 	siteRepo := db.NewSiteRepository()
 	site, err := siteRepo.GetBySlug(siteSlug)
