@@ -23,15 +23,25 @@ var backendStartCmd = &cobra.Command{
 		daemonMode, _ := cmd.Flags().GetBool("daemon")
 		noSystemd, _ := cmd.Flags().GetBool("no-systemd")
 		authToken, _ := cmd.Flags().GetString("auth-token")
+		syncTargetHost, _ := cmd.Flags().GetString("sync-host")
+		syncTargetUser, _ := cmd.Flags().GetString("sync-user")
+		syncTargetPort, _ := cmd.Flags().GetInt("sync-port")
+		syncTargetKey, _ := cmd.Flags().GetString("sync-key")
 
 		// Set auth token in config
 		cfg.AuthToken = authToken
+		
+		// Set sync target in config
+		cfg.SyncTargetHost = syncTargetHost
+		cfg.SyncTargetUser = syncTargetUser
+		cfg.SyncTargetPort = syncTargetPort
+		cfg.SyncTargetKey = syncTargetKey
 
 		if daemonMode {
 			// Try systemd first if available and not disabled
 			if !noSystemd && isSystemdAvailable() {
 				fmt.Println("Systemd detected, installing service...")
-				if err := installAndStartSystemdService(port, authToken); err != nil {
+				if err := installAndStartSystemdService(port, authToken, syncTargetHost, syncTargetUser, syncTargetPort, syncTargetKey); err != nil {
 					fmt.Fprintf(os.Stderr, "Systemd installation failed: %v\n", err)
 					fmt.Println("Falling back to basic daemon mode...")
 					if err := daemon.StartDaemon(cfg, port); err != nil {
@@ -141,6 +151,10 @@ func init() {
 	backendStartCmd.Flags().Bool("daemon", false, "Run as daemon in background")
 	backendStartCmd.Flags().Bool("no-systemd", false, "Disable systemd auto-installation")
 	backendStartCmd.Flags().String("auth-token", "", "API authentication token")
+	backendStartCmd.Flags().String("sync-host", "", "Sync target host (for remote sync)")
+	backendStartCmd.Flags().String("sync-user", "root", "Sync target SSH user")
+	backendStartCmd.Flags().Int("sync-port", 22, "Sync target SSH port")
+	backendStartCmd.Flags().String("sync-key", "", "Sync target SSH key path")
 	backendStopCmd.Flags().Bool("uninstall", false, "Stop and uninstall systemd service")
 	backendStatusCmd.Flags().String("target", "", "Remote target (host:port)")
 	
@@ -170,7 +184,7 @@ func isSystemdServiceInstalled() bool {
 	return true
 }
 
-func installAndStartSystemdService(port int, authToken string) error {
+func installAndStartSystemdService(port int, authToken string, syncTargetHost string, syncTargetUser string, syncTargetPort int, syncTargetKey string) error {
 	// Get executable path
 	execPath, err := os.Executable()
 	if err != nil {
@@ -189,10 +203,22 @@ func installAndStartSystemdService(port int, authToken string) error {
 		user = "root"
 	}
 
-	// Build command with auth token if provided
+	// Build command with flags
 	cmd := fmt.Sprintf("%s backend start --port=%d", execPath, port)
 	if authToken != "" {
 		cmd += fmt.Sprintf(" --auth-token=%s", authToken)
+	}
+	if syncTargetHost != "" {
+		cmd += fmt.Sprintf(" --sync-host=%s", syncTargetHost)
+	}
+	if syncTargetUser != "" && syncTargetUser != "root" {
+		cmd += fmt.Sprintf(" --sync-user=%s", syncTargetUser)
+	}
+	if syncTargetPort != 22 {
+		cmd += fmt.Sprintf(" --sync-port=%d", syncTargetPort)
+	}
+	if syncTargetKey != "" {
+		cmd += fmt.Sprintf(" --sync-key=%s", syncTargetKey)
 	}
 
 	// Create service file content

@@ -15,6 +15,11 @@ type Config struct {
 	UIDir        string // For UI override mode
 	ServerPort   int
 	AuthToken   string // API authentication token
+	// Sync target configuration
+	SyncTargetHost string
+	SyncTargetUser string
+	SyncTargetPort int
+	SyncTargetKey  string
 }
 
 func Load() (*Config, error) {

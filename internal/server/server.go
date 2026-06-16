@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -248,12 +247,11 @@ func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug 
 		return
 	}
 	
-	// Parse request body
-	var payload map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	// Check if sync target is configured
+	if s.cfg.SyncTargetHost == "" {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"success":false,"error":"invalid request body"}`))
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"success":false,"error":"sync target not configured on daemon"}`))
 		return
 	}
 	
@@ -281,11 +279,25 @@ func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug 
 		return
 	}
 	
-	// Placeholder: In a real implementation, this would trigger the sync service
-	// The sync service needs a target to sync to, which would need to be configured
-	// on the remote daemon side. For now, return success.
+	// Trigger sync service
+	syncService := services.NewSyncService(s.cfg)
+	syncTarget := services.SyncTarget{
+		Host: s.cfg.SyncTargetHost,
+		User: s.cfg.SyncTargetUser,
+		Port: s.cfg.SyncTargetPort,
+		Key:  s.cfg.SyncTargetKey,
+	}
+	
+	if err := syncService.Sync(slug, syncTarget); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(fmt.Sprintf(`{"success":false,"error":"sync failed: %s"}`, err.Error())))
+		return
+	}
+	
+	// Return success
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"success":true,"message":"sync triggered (placeholder implementation)"}`))
+	w.Write([]byte(`{"success":true,"message":"site synced successfully"}`))
 }
 
 // authMiddleware validates Bearer token authentication
