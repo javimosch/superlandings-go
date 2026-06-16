@@ -438,15 +438,23 @@ cp /tmp/intrane-fr.html ~/.superlandings/sites/intrane/v1/index.html
 # Deploy to dk2 (robust sync - auto-creates site/version)
 sl-cli site sync intrane --host 92.113.145.16 --user dk2 --key ~/.ssh/id_rsa_srv
 
-# Configure Traefik via hotify
-hotify-cli setup --id intrane --name intrane --domain intrane.intrane.fr --port 3100 --cmd "true"
-hotify-cli setup-traefik --id intrane --challenge-type http
+# Sync Cloudflare token from local to remote (required for SSL)
+scp ~/.hotify/config.json dk2@92.113.145.16:/tmp/hotify-config.json
+ssh dk2 "mkdir -p ~/.hotify && mv /tmp/hotify-config.json ~/.hotify/config.json"
 
-# Configure DNS
+# Configure DNS via local hotify (has CF token)
+hotify-cli setup --id intrane --name intrane --domain intrane --port 3100 --cmd "true"
 hotify-cli setup-dns --id intrane --ip 92.113.145.16 --local
+
+# Configure Traefik on remote (needs CF token)
+ssh dk2 "hotify-cli setup-traefik --id intrane --challenge-type http --local"
 ```
 
-**Note:** The sync command now handles auto-creation of sites and versions on the remote, eliminating the need for manual scp and manual site/version creation. Use hotify-cli for all Traefik configuration - never manually edit `/etc/traefik/dynamic.yml`.
+**Note:** Cloudflare token sync required for SSL certificates:
+- Local hotify has CF token, remote may not
+- Copy `~/.hotify/config.json` from local to remote server
+- Required for Traefik to generate Let's Encrypt SSL certificates
+- Without CF token, Traefik setup fails on remote
 
 ## References
 
