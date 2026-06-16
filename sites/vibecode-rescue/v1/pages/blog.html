@@ -1,0 +1,12 @@
+<h1 class="text-5xl font-bold mb-8 gradient-text">Blog</h1>
+<p class="text-xl text-gray-300 mb-12">Thoughts on vibecoding, rescuing codebases, and building better software.</p>
+<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+  {{range .blog_posts}}
+  <a href="{{$.root}}/{{.slug}}" class="bg-gray-900 p-6 rounded-xl border border-gray-800 card-hover block">
+    <h2 class="text-xl font-bold mb-3 text-orange-400">{{.title}}</h2>
+    {{if .description}}
+    <p class="text-gray-400 text-sm">{{.description}}</p>
+    {{end}}
+  </a>
+  {{end}}
+</div>
