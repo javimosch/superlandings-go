@@ -330,6 +330,16 @@ sl-cli backend start --daemon --port <port> --auth-token <token> \
 
 6. **Daemon restart can fail**: The final daemon restart step in sync often fails (exit code 255), but this doesn't mean the sync failed - files and metadata are already in place.
 
+7. **Real-time sync without restart**: Files are served immediately after sync - daemon reads from disk on each request, no restart needed. **Confirmed test:**
+```bash
+# Edit local file
+# Sync with scp (or sl-cli sync)
+scp file.html user@server:~/.superlandings/sites/slug/version/
+# Test immediately - changes are live
+curl http://server:port/slug/  # Changes appear instantly
+```
+**Result:** Changes appear instantly without daemon restart. The daemon restart step in sync is only needed for configuration changes, not content updates.
+
 ### Deployment Best Practices
 
 1. **Verify files before daemon restart**: After sync, check if files exist on remote (`ls -la ~/.superlandings/sites/<slug>/<version>/`) before restarting daemon.
