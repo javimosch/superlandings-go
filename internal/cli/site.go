@@ -220,6 +220,126 @@ var siteWriteCmd = &cobra.Command{
 	},
 }
 
+// site dns
+var siteDnsCmd = &cobra.Command{
+	Use:   "dns",
+	Short: "Manage DNS via hotify-cli",
+}
+
+// site dns setup
+var siteDnsSetupCmd = &cobra.Command{
+	Use:   "setup <site>",
+	Short: "Setup DNS for a site via hotify-cli",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := initializeDB(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+
+		domain, _ := cmd.Flags().GetString("domain")
+		ip, _ := cmd.Flags().GetString("ip")
+		traefik, _ := cmd.Flags().GetBool("traefik")
+
+		if domain == "" {
+			fmt.Fprintf(os.Stderr, "Error: --domain is required\n")
+			os.Exit(1)
+		}
+		if ip == "" {
+			fmt.Fprintf(os.Stderr, "Error: --ip is required\n")
+			os.Exit(1)
+		}
+
+		// Get site by slug
+		siteService := services.NewSiteService(cfg)
+		site, err := siteService.GetBySlug(args[0])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting site: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Setup DNS via hotify-cli
+		dnsService := services.NewDNSService(cfg)
+		if err := dnsService.SetupDNS(site.ID, site.Slug, domain, ip, traefik); err != nil {
+			fmt.Fprintf(os.Stderr, "Error setting up DNS: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("DNS setup successfully for %s -> %s\n", domain, ip)
+		if traefik {
+			fmt.Println("Traefik routing configured")
+		}
+	},
+}
+
+// site dns list
+var siteDnsListCmd = &cobra.Command{
+	Use:   "list <site>",
+	Short: "List DNS domains for a site",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := initializeDB(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+
+		// Get site by slug
+		siteService := services.NewSiteService(cfg)
+		site, err := siteService.GetBySlug(args[0])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting site: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Get domains
+		dnsService := services.NewDNSService(cfg)
+		domains, err := dnsService.GetDomains(site.ID)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting domains: %v\n", err)
+			os.Exit(1)
+		}
+
+		if len(domains) == 0 {
+			fmt.Println("No domains configured")
+			return
+		}
+
+		fmt.Println("Domain\tIP\tTraefik")
+		for _, d := range domains {
+			traefik := "No"
+			if d.Traefik {
+				traefik = "Yes"
+			}
+			fmt.Printf("%s\t%s\t%s\n", d.Domain, d.IP, traefik)
+		}
+	},
+}
+
+// site dns remove
+var siteDnsRemoveCmd = &cobra.Command{
+	Use:   "remove <site>",
+	Short: "Remove DNS configuration for a site",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := initializeDB(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+
+		// Remove DNS via hotify-cli
+		dnsService := services.NewDNSService(cfg)
+		if err := dnsService.RemoveDNS(args[0]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error removing DNS: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("DNS configuration removed for %s\n", args[0])
+	},
+}
+
 func init() {
 	// Site commands
 	siteCreateCmd.Flags().String("name", "", "Site name")
@@ -239,6 +359,16 @@ func init() {
 	siteVersionCmd.AddCommand(siteVersionListCmd)
 	siteVersionCmd.AddCommand(siteVersionSwitchCmd)
 
+	// DNS commands
+	siteDnsSetupCmd.Flags().String("domain", "", "Domain name (e.g., slv2.intrane.fr)")
+	siteDnsSetupCmd.Flags().String("ip", "", "IP address (e.g., 92.113.145.16)")
+	siteDnsSetupCmd.Flags().Bool("traefik", false, "Setup Traefik routing")
+
+	siteDnsCmd.AddCommand(siteDnsSetupCmd)
+	siteDnsCmd.AddCommand(siteDnsListCmd)
+	siteDnsCmd.AddCommand(siteDnsRemoveCmd)
+
 	siteCmd.AddCommand(siteVersionCmd)
 	siteCmd.AddCommand(siteWriteCmd)
+	siteCmd.AddCommand(siteDnsCmd)
 }

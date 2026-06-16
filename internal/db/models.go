@@ -75,3 +75,13 @@ type SiteVersion struct {
 	IsActive  bool      `json:"isActive" db:"is_active"`
 	CreatedAt time.Time `json:"createdAt" db:"created_at"`
 }
+
+// SiteDomain represents a domain configuration for a site
+type SiteDomain struct {
+	ID        string    `json:"id" db:"id"`
+	SiteID    string    `json:"siteId" db:"site_id"`
+	Domain    string    `json:"domain" db:"domain"`
+	IP        string    `json:"ip" db:"ip"`
+	Traefik   bool      `json:"traefik" db:"traefik"`
+	CreatedAt time.Time `json:"createdAt" db:"created_at"`
+}

@@ -114,6 +114,16 @@ func runMigrations() error {
 			FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
 			UNIQUE(site_id, version)
 		)`,
+		`CREATE TABLE IF NOT EXISTS site_domains (
+			id TEXT PRIMARY KEY,
+			site_id TEXT NOT NULL,
+			domain TEXT NOT NULL,
+			ip TEXT,
+			traefik BOOLEAN DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+			UNIQUE(site_id, domain)
+		)`,
 		`CREATE INDEX IF NOT EXISTS idx_landings_slug ON landings(slug)`,
 		`CREATE INDEX IF NOT EXISTS idx_landings_type ON landings(type)`,
 		`CREATE INDEX IF NOT EXISTS idx_landings_org ON landings(organization_id)`,
@@ -122,6 +132,7 @@ func runMigrations() error {
 		`CREATE INDEX IF NOT EXISTS idx_sites_slug ON sites(slug)`,
 		`CREATE INDEX IF NOT EXISTS idx_site_versions_site_id ON site_versions(site_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_site_versions_active ON site_versions(is_active)`,
+		`CREATE INDEX IF NOT EXISTS idx_site_domains_site_id ON site_domains(site_id)`,
 	}
 
 	for _, migration := range migrations {
