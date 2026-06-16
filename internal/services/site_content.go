@@ -97,20 +97,19 @@ func (s *SiteService) processContent(content, filePath, versionDir, siteSlug, si
 		data = make(map[string]interface{})
 	}
 
-	// If serving index.html and nav_pages not in data, auto-discover pages
-	if strings.HasSuffix(filePath, "index.html") {
-		if _, ok := data["nav_pages"]; !ok {
-			pages, err := s.DiscoverPages(siteSlug)
-			if err == nil {
-				data["nav_pages"] = pages
-			}
+	// Auto-discover pages for navigation (if not in data)
+	if _, ok := data["nav_pages"]; !ok {
+		pages, err := s.DiscoverPages(siteSlug)
+		if err == nil {
+			data["nav_pages"] = pages
 		}
-		// Auto-discover blog posts
-		if _, ok := data["blog_posts"]; !ok {
-			posts, err := s.DiscoverBlogPosts(siteSlug)
-			if err == nil {
-				data["blog_posts"] = posts
-			}
+	}
+
+// Auto-discover blog posts for all pages
+	if _, ok := data["blog_posts"]; !ok {
+		posts, err := s.DiscoverBlogPosts(siteSlug)
+		if err == nil {
+			data["blog_posts"] = posts
 		}
 	}
 
