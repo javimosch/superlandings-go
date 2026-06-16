@@ -125,6 +125,16 @@ func (s *SiteService) processContent(content, filePath, versionDir, siteSlug, si
 	// Add root path variable
 	data["root"] = "/" + siteSlug
 
+	// Add brand name (default to site name if not in data)
+	if _, ok := data["brand"]; !ok {
+		site, err := s.siteRepo.GetBySlug(siteSlug)
+		if err == nil {
+			data["brand"] = site.Name
+		} else {
+			data["brand"] = siteSlug
+		}
+	}
+
 	// Render with Go template
 	renderedContent, err := s.renderTemplate(processedContent, data, versionDir)
 	if err != nil {
