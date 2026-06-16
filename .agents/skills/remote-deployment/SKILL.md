@@ -332,13 +332,15 @@ sl-cli backend start --daemon --port <port> --auth-token <token> \
 
 7. **Real-time sync without restart**: Files are served immediately after sync - daemon reads from disk on each request, no restart needed. **Confirmed test:**
 ```bash
-# Edit local file
-# Sync with scp (or sl-cli sync)
+# For testing purposes (bypasses daemon restart step):
 scp file.html user@server:~/.superlandings/sites/slug/version/
-# Test immediately - changes are live
 curl http://server:port/slug/  # Changes appear instantly
+
+# Production workflow (use sl-cli sync):
+sl-cli site sync <slug> --host <server> --user <user> --key <key>
+# Note: Daemon restart step may fail, but sync succeeds
 ```
-**Result:** Changes appear instantly without daemon restart. The daemon restart step in sync is only needed for configuration changes, not content updates.
+**Result:** Changes appear instantly without daemon restart. The daemon restart step in sync is only needed for configuration changes, not content updates. Use `sl-cli site sync` for production; direct scp only for testing/quick fixes.
 
 8. **Dynamic blocks ARE implemented**: The `{{>include "path"}}` syntax works. Implemented in `internal/services/site.go` (lines 277-301) with:
    - Regex pattern matching for `{{>include "path"}}`
