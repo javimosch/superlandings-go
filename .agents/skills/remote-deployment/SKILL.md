@@ -314,6 +314,34 @@ sl-cli backend start --daemon --port <port> --auth-token <token> \
   --sync-host <prod-server> --sync-key ~/.ssh/prod_key
 ```
 
+## Learnings & Caveats
+
+### Remote Execution Limitations
+
+1. **HTTP API sync returns plain text errors**: The remote sync endpoint via HTTP API (`--target`) currently returns plain text error messages instead of JSON. Use SSH-based sync (`--host`) for reliable error reporting until this is fixed.
+
+2. **Sync path bug fixed**: The sync service was missing the home directory (`~`) in remote paths, causing "No such file or directory" errors. This has been fixed - remote path is now `~/.superlandings/sites/<slug>` instead of `/.superlandings/sites/<slug>`.
+
+3. **Port support added**: SSH, SCP, and rsync commands now properly support non-standard SSH ports via `-p` flag for SSH and `-P` flag for SCP.
+
+4. **Don't restart daemon unnecessarily**: After sync completes, files are immediately live. The daemon restart step at the end of sync is optional - only restart if you need to reload configuration or if the daemon crashed.
+
+5. **SSH-based sync is more reliable**: For now, use SSH-based sync (`--host --user --key`) instead of HTTP API sync (`--target`) until the JSON error response issue is resolved.
+
+6. **Daemon restart can fail**: The final daemon restart step in sync often fails (exit code 255), but this doesn't mean the sync failed - files and metadata are already in place.
+
+### Deployment Best Practices
+
+1. **Verify files before daemon restart**: After sync, check if files exist on remote (`ls -la ~/.superlandings/sites/<slug>/<version>/`) before restarting daemon.
+
+2. **Test site access directly**: Use `curl http://<server>:<port>/<slug>/` to test site access instead of assuming daemon restart is needed.
+
+3. **Keep daemon alive during sync**: The sync process transfers files and imports metadata while daemon is running - no need to stop it first.
+
+4. **Use SSH for initial deployment**: SSH-based sync (`--host`) is more reliable for initial deployment. HTTP API sync (`--target`) is better for ongoing operations once daemon is stable.
+
+5. **Check sync logs**: If sync fails, check the specific error output - rsync, scp, and ssh each have their own error messages that help diagnose issues.
+
 ## References
 
 - hotify-integration skill for hotify-cli details
