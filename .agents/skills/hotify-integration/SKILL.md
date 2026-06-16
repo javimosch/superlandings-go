@@ -99,6 +99,10 @@ sl-cli site proxy <SITE_SLUG> --domain <DOMAIN> --internal-url http://127.0.0.1:
 1. **Config ownership** - Traefik files must be owned by the user running hotify-cli
 2. **Domain duplication** - hotify-cli may append base domain twice
 3. **Placeholder command required** - Need `sleep infinity` instead of `true` for backend-url
+4. **HTTPS connection reset** - Tailscale Funnel or iptables redirects may block port 443
+   - Check: `tailscale funnel status` (disable with `tailscale funnel reset`)
+   - Check: `iptables -t nat -L -n -v` (remove redirect: `iptables -t nat -D PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443`)
+   - See remote-deployment skill for detailed troubleshooting
 
 **Fixed in hotify-cli v2.10.1:**
 - ✅ Router/service configuration now generated automatically

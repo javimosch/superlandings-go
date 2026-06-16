@@ -173,7 +173,37 @@ ssh <USER>@<SERVER_IP> "sudo journalctl -u traefik -n 50 --no-pager"
 
 # Verify dynamic config
 ssh <USER>@<SERVER_IP> "sudo cat /etc/traefik/dynamic.yml"
+
+# Note: Traefik auto-reloads when config changes (watch: true in providers.file)
+# Do not manually restart Traefik unless necessary
 ```
+
+### HTTPS Connection Reset (port 443)
+
+If HTTPS returns connection reset but HTTP works:
+
+```bash
+# Check for Tailscale Funnel (blocks port 443)
+ssh <USER>@<SERVER_IP> "sudo tailscale funnel status"
+# If enabled, disable it:
+ssh <USER>@<SERVER_IP> "sudo tailscale funnel reset"
+
+# Check for iptables redirect rules
+ssh <USER>@<SERVER_IP> "sudo iptables -t nat -L -n -v | grep 443"
+# If you see "tcp dpt:443 redir ports 8443", remove it:
+ssh <USER>@<SERVER_IP> "sudo iptables -t nat -D PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443"
+
+# Save iptables rules permanently
+ssh <USER>@<SERVER_IP> "sudo mkdir -p /etc/iptables && sudo iptables-save | sudo tee /etc/iptables/rules.v4 > /dev/null"
+
+# Restart Tailscale if needed
+ssh <USER>@<SERVER_IP> "sudo tailscale up"
+```
+
+**Root causes:**
+- Tailscale Funnel uses port 443 and conflicts with Traefik HTTPS
+- Old iptables redirect rules (443 → 8443) from previous configurations
+- These rules block external HTTPS access while local access works fine
 
 ## References
 
