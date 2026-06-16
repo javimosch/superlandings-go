@@ -1,390 +1,216 @@
-# SuperLandings Go Port - Architecture Brainstorm
+# SuperLandings Go - Brainstorming & Design Notes
 
-## Overview
-Port SuperLandings from Node.js to Go, focusing on `sl-cli` (CLI+UI) with direct backend logic access, SQLite persistence, and single-binary deployment.
+## Project Overview
 
-## Key Requirements
-1. **sl-cli (Go version)** - CLI commands with embedded React UI
-2. **sl-cli backend start/stop --daemon** - Process management
-3. **Direct backend logic** - No HTTP API for CLI commands, hit logic directly
-4. **UI override** - Load .html from DIR for faster iterations when deployed
-5. **SQLite DB** - Replace MongoDB with `~/.superlandings/db.sql`
-6. **Single binary** - No Docker, deploy as standalone binary
+Port SuperLandings (Node.js) to Go with simplified architecture, focusing on:
+- Single binary deployment
+- SQLite instead of MongoDB
+- File system-based versioning
+- Agent-first CLI
+- Minimal dependencies
 
-## Current Node.js Architecture Analysis
+## Architecture Decisions
 
-### CLI Commands (`cli/lib/commands/`)
-- **landing.js** (704 LOC) - Landing CRUD operations
-  - list, get, create, update, delete
-  - content update, domain management
-  - version management
-- **organization.js** - Organization management
-- **user.js** - User management
+### Database
+- **Choice**: SQLite (modernc.org/sqlite - pure Go, no CGo)
+- **Reason**: Embedded, zero-config, file-based, suitable for single-server deployments
+- **Trade-off**: Not suitable for high-concurrency multi-tenant, but perfect for target use case
 
-### Persistence Layer (`lib/store.js`)
-- **Dual engine**: JSON file + MongoDB
-- **Collections**: landings, versions, app_state
-- **Sync logic**: JSON ↔ MongoDB bidirectional sync
+### Storage Strategy
+- **Hybrid approach**: SQLite for metadata, file system for content
+- **SQLite stores**: Sites, versions, users, organizations, domains
+- **File system stores**: Actual HTML files, assets, templates
+- **Benefits**: Best of both worlds - queries via SQL, content via FS
 
-### Core Libraries (`lib/`)
-- **blog.js** (14k LOC) - Blog module with posts
-- **traefik.js** (17k LOC) - Traefik dynamic configuration
-- **cloudflare.js** (11k LOC) - Cloudflare DNS integration
-- **versions.js** (14k LOC) - Version control system
-- **llm.js** (19k LOC) - AI/LLM integration
-- **audit.js** - Audit logging
-- **auth.js** - Authentication
-- **i18n.js** - Internationalization
+### Version Control
+- **File system based**: `sites/{slug}/{version}/`
+- **Instant rollback**: Database flag or symlink
+- **Git-friendly**: Can version control entire sites
+- **No migrations**: File system doesn't need schema changes
 
-## Proposed Go Architecture
+### Dynamic Blocks
+- **Syntax**: `{{>include "path"}}`
+- **Processed at**: Serve time (no build step)
+- **Recursive**: Files can include other files
+- **Alternative**: Go's html/template for variables, conditionals, loops
 
-### Project Structure
-```
-superlandings-go/
-├── cmd/
-│   └── sl-cli/
-│       └── main.go           # CLI entry point
-├── internal/
-│   ├── cli/                  # CLI command implementations
-│   │   ├── landing.go        # Landing commands
-│   │   ├── organization.go   # Organization commands
-│   │   ├── user.go           # User commands
-│   │   └── backend.go        # Backend daemon commands
-│   ├── db/                   # SQLite database layer
-│   │   ├── sqlite.go         # SQLite connection & migrations
-│   │   ├── models.go         # Data models
-│   │   └── repositories.go   # Database operations
-│   ├── services/             # Business logic (direct access)
-│   │   ├── landing.go        # Landing service
-│   │   ├── blog.go           # Blog service
-│   │   ├── traefik.go        # Traefik service
-│   │   ├── cloudflare.go     # Cloudflare service
-│   │   └── version.go        # Version service
-│   ├── daemon/               # Process management
-│   │   └── daemon.go         # PID file, signals, lifecycle
-│   ├── server/               # HTTP server for UI
-│   │   ├── server.go         # HTTP handlers
-│   │   └── embed.go          # Embedded filesystem
-│   └── config/               # Configuration
-│       └── config.go         # Config loading
-├── ui/                       # Frontend (overrideable)
-│   ├── index.html            # React 18 entry
-│   ├── css/
-│   │   └── app.css
-│   └── js/
-│       ├── app.jsx
-│       ├── components/
-│       └── views/
-├── go.mod
-├── go.sum
-├── build.sh
-└── README.md
+## Data Models
+
+### Site
+```go
+type Site struct {
+    ID        string
+    Name      string
+    Slug      string
+    CreatedAt time.Time
+    UpdatedAt time.Time
+}
 ```
 
-## Phase 1: Core Infrastructure (MVP)
+### SiteVersion
+```go
+type SiteVersion struct {
+    ID        string
+    SiteID    string
+    Version   string    // "v1", "v2", etc.
+    Path      string    // FS path like "sites/foo/v1"
+    Comment   string
+    Author    string
+    IsActive  bool
+    CreatedAt time.Time
+}
+```
 
-### 1.1 SQLite Database Layer
-**File**: `internal/db/sqlite.go`
-- Use `modernc.org/sqlite` (pure Go, no CGo)
-- Database path: `~/.superlandings/db.sql`
-- Auto-migration on startup
-- Connection pooling
-
-**Models** (`internal/db/models.go`):
+### Landing (legacy support)
 ```go
 type Landing struct {
-    ID             string    `json:"id" db:"id"`
-    Name           string    `json:"name" db:"name"`
-    Slug           string    `json:"slug" db:"slug"`
-    Type           string    `json:"type" db:"type"` // html, ejs, virtual, static
-    OrganizationID string    `json:"organizationId" db:"organization_id"`
-    Content        string    `json:"content" db:"content"` // for html type
-    Files          []File    `json:"files" db:"-"` // for virtual type
-    Domains        []Domain  `json:"domains" db:"-"` 
-    Config         Config    `json:"config" db:"config"`
-    CreatedAt      time.Time `json:"createdAt" db:"created_at"`
-    UpdatedAt      time.Time `json:"updatedAt" db:"updated_at"`
-}
-
-type Domain struct {
-    Domain     string `json:"domain" db:"domain"`
-    Traefik    bool   `json:"traefik" db:"traefik"`
-    Cloudflare bool   `json:"cloudflare" db:"cloudflare"`
-}
-
-type File struct {
-    Path string `json:"path" db:"path"`
-    Content string `json:"content" db:"content"`
+    ID             string
+    Name           string
+    Slug           string
+    Type           string    // html, virtual, static
+    OrganizationID string
+    Content        string
+    Files          []File
+    Domains        []Domain
+    Config         Config
+    CreatedAt      time.Time
+    UpdatedAt      time.Time
 }
 ```
 
-### 1.2 CLI Framework
-**File**: `cmd/sl-cli/main.go`
-- Use `github.com/spf13/cobra` for CLI commands
-- JSON output mode for agent-friendly usage
-- Semantic exit codes (matching Node.js version)
+## CLI Structure
 
-**Command Structure**:
-```bash
-sl-cli landing list          # Direct DB call
-sl-cli landing get <id>      # Direct DB call
-sl-cli landing create ...    # Direct service call
-sl-cli backend start         # Start HTTP server
-sl-cli backend stop          # Stop daemon
-sl-cli backend status        # Check daemon status
+### Root Commands
+- `sl-cli landing` - Landing CRUD
+- `sl-cli backend` - Daemon management
+- `sl-cli site` - Site management
+- `sl-cli organization` - Organization CRUD
+- `sl-cli user` - User management
+
+### Site Commands
+- `sl-cli site create --name --slug`
+- `sl-cli site list`
+- `sl-cli site version create <site> --version --comment`
+- `sl-cli site version list <site>`
+- `sl-cli site version switch <site> <version>`
+- `sl-cli site write <site> <version> <file> --content`
+
+### Backend Commands
+- `sl-cli backend start --daemon --port [--no-systemd]`
+- `sl-cli backend stop [--uninstall]`
+- `sl-cli backend status`
+
+## Daemon Implementation
+
+### Features
+- PID file management
+- Process lifecycle (start, stop, status)
+- Log redirection to file
+- Systemd auto-installation
+- Fallback to basic daemon if systemd unavailable
+
+### Systemd Service
+```ini
+[Unit]
+Description=SuperLandings CLI Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=<user>
+WorkingDirectory=<working-dir>
+ExecStart=<executable> backend start --port=<port>
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-### 1.3 Business Logic Layer
-**Key Design**: CLI commands call services directly (no HTTP)
+## HTTP Server
 
-```go
-// internal/services/landing.go
-type LandingService struct {
-    db *sqlite.DB
-}
+### Routes
+- `/:slug` - Serve site index
+- `/:slug/:page` - Serve site page with sub-path routing
+- `/` - List all sites and landings
+- `/health` - Health check
 
-func (s *LandingService) CreateLanding(req CreateLandingRequest) (*Landing, error) {
-    // Direct database operations
-    // File system operations
-    // Validation
-}
+### Serving Logic
+1. Try to serve as site (with dynamic blocks and Go templates)
+2. Fall back to landing
+3. Return 404 if not found
 
-// internal/cli/landing.go
-func (c *LandingCommand) Create(cmd *cobra.Command, args []string) {
-    service := services.NewLandingService(c.db)
-    landing, err := service.CreateLanding(req)
-    // Output JSON or error
-}
+### Template Processing
+1. Process includes (`{{>include "path"}}`)
+2. If `.data.json` exists, render with Go html/template
+3. Return processed HTML
+
+## File System Structure
+
+```
+~/.superlandings/
+├── db.sql                    # SQLite database
+├── sites/                    # Site content
+│   └── my-site/
+│       ├── v1/
+│       │   ├── index.html
+│       │   ├── index.html.data.json  # Template variables
+│       │   ├── nav.html
+│       │   └── footer.html
+│       └── v2/
+├── landings/                 # Legacy landing content
+│   └── test-landing/
+│       └── index.html
+├── sl-cli.pid               # Daemon PID file
+└── sl-cli.log               # Daemon log file
 ```
 
-### 1.4 Daemon Management
-**File**: `internal/daemon/daemon.go`
-- PID file: `~/.superlandings/sl-cli.pid`
-- Log file: `~/.superlandings/sl-cli.log`
-- Signal handling (SIGTERM, SIGINT)
-- Status checking
+## Implementation Phases
 
-```go
-func StartDaemon(port int) error
-func StopDaemon() error
-func DaemonStatus() (bool, int, error)
-```
+### Phase 1: Core ✅
+- SQLite database layer
+- Site CRUD operations
+- Site version management
+- File system operations
+- HTTP server
+- Daemon management
+- Dynamic blocks
+- Go templates
 
-### 1.5 HTTP Server for UI
-**File**: `internal/server/server.go`
-- Embedded UI via `go:embed`
-- Override mode: Serve from directory if flag provided
-- JSON API endpoints for UI
-- Static file serving
+### Phase 2: Core Infrastructure (Next)
+- Traefik integration
+- Cloudflare integration
+- Domain management
 
-**Override Mechanism**:
-```go
-func startServer(uiDir string) {
-    var fileServer http.Handler
-    
-    if uiDir != "" {
-        // Serve from disk for development
-        fileServer = http.FileServer(http.Dir(uiDir))
-    } else {
-        // Serve embedded files
-        uiSub, _ := fs.Sub(uiFiles, "ui")
-        fileServer = http.FileServer(http.FS(uiSub))
-    }
-}
-```
+### Phase 3: Content Management
+- Blog module
+- Asset management
+- SEO meta tags
 
-## Phase 2: Core Landing Features
+### Phase 4: Multi-Tenancy
+- User management
+- Organization management
+- Authentication
 
-### 2.1 Landing CRUD
-- **Create**: Support html, ejs, virtual, static types
-- **Read**: List, get by ID/slug
-- **Update**: Content, metadata, files
-- **Delete**: Soft delete with cleanup
+## Future Considerations
 
-### 2.2 File System Operations
-- Landing directories: `~/.superlandings/landings/{slug}/`
-- Virtual file management
-- Asset upload handling
-- Directory structure validation
+### Potential Features
+- Admin UI (React embedded via go:embed)
+- Database backups
+- Multi-region deployment
+- GraphQL API
+- WebAssembly templates
 
-### 2.3 Domain Management
-- Add/remove domains
-- Traefik configuration generation
-- Cloudflare DNS integration (Phase 3)
+### Architecture Decisions to Revisit
+- SQLite vs PostgreSQL for high-traffic multi-tenant
+- Single binary vs microservices for scaling
+- File system vs S3 for cloud-native storage
 
-## Phase 3: Advanced Features
+## Notes
 
-### 3.1 Traefik Integration
-**File**: `internal/services/traefik.go`
-- Generate dynamic configuration
-- Watch for changes
-- Hot-reload Traefik
-- SSL certificate management
-
-### 3.2 Cloudflare Integration
-**File**: `internal/services/cloudflare.go`
-- DNS record management
-- Proxy configuration
-- API authentication
-
-### 3.3 Version Control
-**File**: `internal/services/version.go`
-- Version creation
-- Restore functionality
-- Version metadata
-- Storage optimization
-
-### 3.4 Blog Module
-**File**: `internal/services/blog.go`
-- Post CRUD
-- SEO metadata
-- Multi-language support
-- RSS feed generation
-
-## Technical Decisions
-
-### Database: SQLite
-**Pros**:
-- Single file, no external dependencies
-- Perfect for single-binary deployment
-- Good performance for CLI use case
-- Easy backup/restore
-
-**Libraries**:
-- `modernc.org/sqlite` - Pure Go, no CGo
-- `gorm.io/gorm` - ORM (optional, can use raw SQL)
-
-### CLI Framework: Cobra
-**Pros**:
-- Standard for Go CLIs
-- Good documentation
-- Subcommand structure
-- Auto-generated help
-
-### HTTP Server: Standard Library
-**Pros**:
-- No dependencies
-- Sufficient for UI needs
-- Good performance
-
-### Embed: Go 1.16+
-**Pros**:
-- Single binary
-- No runtime file dependencies
-- Override mode for development
-
-## File Size Management (500 LOC Limit)
-
-### Strategy:
-- Split large files into focused modules
-- Use interfaces for abstraction
-- Separate concerns (CLI, service, repository)
-- Keep handlers thin
-
-### Example Splits:
-```
-landing.go (500 LOC max)
-├── landing_crud.go       # CRUD operations
-├── landing_files.go      # File operations
-├── landing_domains.go    # Domain management
-└── landing_validation.go # Validation logic
-```
-
-## Development Workflow
-
-### 1. Development Mode
-```bash
-# Start server with UI override for hot-reload
-sl-cli backend start --ui-dir ./ui
-
-# Edit React files in ./ui/
-# Refresh browser - no recompile needed
-```
-
-### 2. Production Build
-```bash
-# Build single binary
-./build.sh
-
-# Deploy
-./sl-cli backend start --daemon
-```
-
-### 3. CLI Usage
-```bash
-# Direct service calls (no HTTP)
-sl-cli landing list
-sl-cli landing create --name "My Landing" --slug "my-landing" --type html
-sl-cli landing update my-landing --content "<html>...</html>"
-```
-
-## Migration Strategy
-
-### Data Migration (Node.js → Go)
-1. Export MongoDB/JSON to intermediate format
-2. Import into SQLite
-3. Validate data integrity
-4. Migrate file system assets
-
-### Feature Parity Checklist
-- [ ] Landing CRUD (html, ejs, virtual, static)
-- [ ] Domain management
-- [ ] Traefik integration
-- [ ] Cloudflare DNS
-- [ ] Version control
-- [ ] Blog module
-- [ ] User/organization management
-- [ ] Audit logging
-- [ ] Authentication
-- [ ] i18n support
-
-## Performance Considerations
-
-### SQLite Optimization
-- WAL mode for concurrent access
-- Connection pooling
-- Prepared statements
-- Indexes on frequently queried fields
-
-### Binary Size
-- Use `upx` for compression (optional)
-- Strip debug symbols in production
-- Minimize dependencies
-
-## Testing Strategy
-
-### Unit Tests
-- Service layer logic
-- Repository operations
-- CLI command handlers
-
-### Integration Tests
-- Database operations
-- File system interactions
-- HTTP endpoints
-
-### CLI Tests
-- Command execution
-- Exit codes
-- JSON output validation
-
-## Next Steps
-
-1. **Setup project structure** - Initialize Go module, directories
-2. **Implement SQLite layer** - Models, migrations, repositories
-3. **Build CLI framework** - Cobra setup, basic commands
-4. **Create landing service** - Core CRUD operations
-5. **Add daemon management** - Start/stop/status
-6. **Implement HTTP server** - Embedded UI, override mode
-7. **Port UI from Node.js** - React components, views
-8. **Add advanced features** - Traefik, Cloudflare, versions
-9. **Testing & optimization** - Unit tests, performance tuning
-10. **Documentation** - AGENTS.md, README
-
-## Questions for User
-
-1. **Priority order**: Should we focus on landing CRUD first, or daemon/HTTP server?
-2. **Feature scope**: Do you need all features (blog, traefik, cloudflare) in MVP?
-3. **Data migration**: Any existing data that needs migration?
-4. **Authentication**: Is auth needed for MVP or can it be deferred?
-5. **UI fidelity**: Should the Go UI match Node.js exactly, or can we simplify?
+- Keep files under 500 LOC (per global rules)
+- Prefer Go stdlib over external dependencies
+- Agent-first design: JSON output, semantic exit codes, deterministic behavior
+- Simple over complex: 20% of features covering 80% of use cases

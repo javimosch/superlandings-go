@@ -75,7 +75,7 @@ superlandings-go/
    - [ ] Implement landing CRUD operations
    - [ ] Add validation logic
    - [ ] File system operations for landing directories
-   - [ ] Support for different landing types (html, ejs, virtual, static)
+   - [ ] Support for different landing types (html, virtual, static)
 
 3. **HTTP Server**
    - [ ] Implement HTTP server for UI
