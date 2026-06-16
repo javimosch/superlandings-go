@@ -340,6 +340,17 @@ curl http://server:port/slug/  # Changes appear instantly
 ```
 **Result:** Changes appear instantly without daemon restart. The daemon restart step in sync is only needed for configuration changes, not content updates.
 
+8. **Dynamic blocks ARE implemented**: The `{{>include "path"}}` syntax works. Implemented in `internal/services/site.go` (lines 277-301) with:
+   - Regex pattern matching for `{{>include "path"}}`
+   - Recursive nested includes support
+   - File reading from version directory
+   - **Tested and working** on both local and remote
+```bash
+# Create nav.html and footer.html in version directory
+# Use in index.html: {{>include "nav.html"}}
+# Daemon processes includes on each request
+```
+
 ### Deployment Best Practices
 
 1. **Verify files before daemon restart**: After sync, check if files exist on remote (`ls -la ~/.superlandings/sites/<slug>/<version>/`) before restarting daemon.
