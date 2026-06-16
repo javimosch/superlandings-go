@@ -199,6 +199,17 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 		action = parts[1]
 	}
 	
+	// Check for nested actions (e.g., versions/switch)
+	nestedAction := ""
+	if len(parts) > 2 {
+		nestedAction = parts[2]
+	}
+	
+	if action == "versions" && nestedAction == "switch" {
+		s.handleAPISiteVersionSwitch(w, r, slug)
+		return
+	}
+	
 	switch action {
 	case "versions":
 		s.handleAPISiteVersions(w, r, slug)
@@ -206,6 +217,8 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 		s.handleAPISiteSync(w, r, slug)
 	case "dns":
 		s.handleAPISiteDNS(w, r, slug)
+	case "write":
+		s.handleAPISiteWrite(w, r, slug)
 	default:
 		s.handleAPISiteDetails(w, r, slug)
 	}
@@ -239,23 +252,64 @@ func (s *Server) handleAPISiteDetails(w http.ResponseWriter, r *http.Request, sl
 }
 
 func (s *Server) handleAPISiteVersions(w http.ResponseWriter, r *http.Request, slug string) {
-	versions, err := s.siteService.ListVersions(slug)
-	if err != nil {
-		http.Error(w, "Site not found", http.StatusNotFound)
+	if r.Method == "GET" {
+		versions, err := s.siteService.ListVersions(slug)
+		if err != nil {
+			http.Error(w, "Site not found", http.StatusNotFound)
+			return
+		}
+		
+		w.Header().Set("Content-Type", "application/json")
+		json := "{\"versions\":["
+		for i, v := range versions {
+			if i > 0 {
+				json += ","
+			}
+			json += fmt.Sprintf(`{"version":"%s","comment":"%s","is_active":%t,"path":"%s"}`,
+				v.Version, v.Comment, v.IsActive, v.Path)
+		}
+		json += "]}"
+		w.Write([]byte(json))
 		return
 	}
 	
-	w.Header().Set("Content-Type", "application/json")
-	json := "{\"versions\":["
-	for i, v := range versions {
-		if i > 0 {
-			json += ","
+	if r.Method == "POST" {
+		var payload struct {
+			Version string `json:"version"`
+			Comment string `json:"comment"`
+			Author  string `json:"author"`
 		}
-		json += fmt.Sprintf(`{"version":"%s","comment":"%s","is_active":%t,"path":"%s"}`,
-			v.Version, v.Comment, v.IsActive, v.Path)
+		
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		
+		if payload.Version == "" {
+			http.Error(w, "version is required", http.StatusBadRequest)
+			return
+		}
+		
+		req := services.CreateVersionRequest{
+			Version: payload.Version,
+			Comment: payload.Comment,
+			Author:  payload.Author,
+		}
+		
+		createdVersion, err := s.siteService.CreateVersion(slug, req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		
+		w.Header().Set("Content-Type", "application/json")
+		json := fmt.Sprintf(`{"version":"%s","comment":"%s","is_active":%t,"path":"%s"}`,
+			createdVersion.Version, createdVersion.Comment, createdVersion.IsActive, createdVersion.Path)
+		w.Write([]byte(json))
+		return
 	}
-	json += "]}"
-	w.Write([]byte(json))
+	
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
 func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug string) {
@@ -420,6 +474,64 @@ func (s *Server) handleAPISiteDNS(w http.ResponseWriter, r *http.Request, slug s
 	}
 	
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+func (s *Server) handleAPISiteVersionSwitch(w http.ResponseWriter, r *http.Request, slug string) {
+	var payload struct {
+		Version string `json:"version"`
+	}
+	
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	
+	if payload.Version == "" {
+		http.Error(w, "version is required", http.StatusBadRequest)
+		return
+	}
+	
+	if err := s.siteService.SwitchVersion(slug, payload.Version); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"success":true}`))
+}
+
+func (s *Server) handleAPISiteWrite(w http.ResponseWriter, r *http.Request, slug string) {
+	var payload struct {
+		Version string `json:"version"`
+		File    string `json:"file"`
+		Content string `json:"content"`
+	}
+	
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	
+	if payload.Version == "" {
+		http.Error(w, "version is required", http.StatusBadRequest)
+		return
+	}
+	if payload.File == "" {
+		http.Error(w, "file is required", http.StatusBadRequest)
+		return
+	}
+	if payload.Content == "" {
+		http.Error(w, "content is required", http.StatusBadRequest)
+		return
+	}
+	
+	if err := s.siteService.WriteFile(slug, payload.Version, payload.File, payload.Content); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"success":true}`))
 }
 
 // authMiddleware validates Bearer token authentication

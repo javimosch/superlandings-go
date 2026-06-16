@@ -93,6 +93,31 @@ func (c *RemoteClient) ListVersions(slug string) (map[string]interface{}, error)
 	return c.parseResponse(resp)
 }
 
+func (c *RemoteClient) CreateVersion(siteSlug string, version, comment, author string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"version": version,
+		"comment": comment,
+		"author":  author,
+	}
+	return c.postJSON("/api/sites/"+siteSlug+"/versions", payload)
+}
+
+func (c *RemoteClient) SwitchVersion(siteSlug, version string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"version": version,
+	}
+	return c.postJSON("/api/sites/"+siteSlug+"/versions/switch", payload)
+}
+
+func (c *RemoteClient) WriteFile(siteSlug, version, file, content string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"version": version,
+		"file":     file,
+		"content":  content,
+	}
+	return c.postJSON("/api/sites/"+siteSlug+"/write", payload)
+}
+
 func (c *RemoteClient) SyncSite(slug string, payload map[string]interface{}) (map[string]interface{}, error) {
 	return c.postJSON("/api/sites/"+slug+"/sync", payload)
 }

@@ -123,7 +123,7 @@ var siteVersionCreateCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		target, _ := cmd.Flags().GetString("target")
 		if target != "" {
-			handleRemoteVersionCreate(target, args)
+			handleRemoteVersionCreate(target, args, cmd)
 			return
 		}
 
@@ -211,6 +211,12 @@ var siteVersionSwitchCmd = &cobra.Command{
 	Short: "Switch active version",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+		if target != "" {
+			handleRemoteVersionSwitch(target, args[0], args[1])
+			return
+		}
+
 		if err := initializeDB(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 			os.Exit(1)
@@ -233,6 +239,12 @@ var siteWriteCmd = &cobra.Command{
 	Short: "Write a file to a version",
 	Args:  cobra.ExactArgs(3),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+		if target != "" {
+			handleRemoteSiteWrite(target, args, cmd)
+			return
+		}
+
 		if err := initializeDB(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 			os.Exit(1)
@@ -411,6 +423,7 @@ func init() {
 	siteVersionSwitchCmd.Flags().String("target", "", "Remote target (host:port)")
 
 	siteWriteCmd.Flags().String("content", "", "File content")
+	siteWriteCmd.Flags().String("target", "", "Remote target (host:port)")
 
 	siteVersionCmd.AddCommand(siteVersionCreateCmd)
 	siteVersionCmd.AddCommand(siteVersionListCmd)

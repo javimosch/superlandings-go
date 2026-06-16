@@ -95,10 +95,77 @@ func handleRemoteVersionList(target string, siteSlug string) {
 	}
 }
 
-func handleRemoteVersionCreate(target string, args []string) {
-	fmt.Fprintf(os.Stderr, "Remote version creation not yet implemented\n")
-	fmt.Fprintf(os.Stderr, "Use SSH directly: ssh user@server 'sl-cli site version create %s'\n", args[0])
-	os.Exit(1)
+func handleRemoteVersionCreate(target string, args []string, cmd *cobra.Command) {
+	version, _ := cmd.Flags().GetString("version")
+	comment, _ := cmd.Flags().GetString("comment")
+	author, _ := cmd.Flags().GetString("author")
+	
+	if version == "" {
+		fmt.Fprintf(os.Stderr, "Error: --version is required\n")
+		os.Exit(1)
+	}
+	
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error connecting to target: %v\n", err)
+		os.Exit(1)
+	}
+	
+	result, err := client.CreateVersion(args[0], version, comment, author)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating remote version: %v\n", err)
+		os.Exit(1)
+	}
+	
+	fmt.Println("Version created successfully!")
+	if versionVal, ok := result["version"].(string); ok {
+		fmt.Printf("Version: %s\n", versionVal)
+	}
+	if pathVal, ok := result["path"].(string); ok {
+		fmt.Printf("Path: %s\n", pathVal)
+	}
+	if isActive, ok := result["is_active"].(bool); ok && isActive {
+		fmt.Println("This version is now active")
+	}
+}
+
+func handleRemoteVersionSwitch(target string, siteSlug, version string) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error connecting to target: %v\n", err)
+		os.Exit(1)
+	}
+	
+	_, err = client.SwitchVersion(siteSlug, version)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error switching remote version: %v\n", err)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("Switched to version %s\n", version)
+}
+
+func handleRemoteSiteWrite(target string, args []string, cmd *cobra.Command) {
+	content, _ := cmd.Flags().GetString("content")
+	
+	if content == "" {
+		fmt.Fprintf(os.Stderr, "Error: --content is required\n")
+		os.Exit(1)
+	}
+	
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error connecting to target: %v\n", err)
+		os.Exit(1)
+	}
+	
+	_, err = client.WriteFile(args[0], args[1], args[2], content)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing remote file: %v\n", err)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("File written successfully: %s\n", args[2])
 }
 
 func handleRemoteDNSList(target string, siteSlug string) {
