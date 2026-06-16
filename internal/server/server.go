@@ -157,14 +157,31 @@ func (s *Server) handleAPISites(w http.ResponseWriter, r *http.Request) {
 	
 	w.Header().Set("Content-Type", "application/json")
 	
+	dnsService := services.NewDNSService(s.cfg)
+
 	// Convert to JSON manually to avoid extra dependencies
 	json := "["
 	for i, site := range sites {
 		if i > 0 {
 			json += ","
 		}
-		json += fmt.Sprintf(`{"slug":"%s","name":"%s"}`, 
-			site.Slug, site.Name)
+
+		// Get domains for this site
+		domains, _ := dnsService.GetDomains(site.ID)
+		domainList := "[]"
+		if len(domains) > 0 {
+			domainList = "["
+			for j, d := range domains {
+				if j > 0 {
+					domainList += ","
+				}
+				domainList += fmt.Sprintf(`"%s"`, d.Domain)
+			}
+			domainList += "]"
+		}
+
+		json += fmt.Sprintf(`{"id":"%s","slug":"%s","name":"%s","domains":%s}`,
+			site.ID, site.Slug, site.Name, domainList)
 	}
 	json += "]"
 	w.Write([]byte(json))

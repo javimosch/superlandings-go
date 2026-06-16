@@ -47,9 +47,19 @@ var siteListCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Println("ID\tName\tSlug")
+		fmt.Println("ID\tName\tSlug\tDomains")
+		dnsService := services.NewDNSService(cfg)
 		for _, site := range sites {
-			fmt.Printf("%s\t%s\t%s\n", site.ID, site.Name, site.Slug)
+			domains, err := dnsService.GetDomains(site.ID)
+			domainStr := ""
+			if err == nil && len(domains) > 0 {
+				domainList := make([]string, len(domains))
+				for i, d := range domains {
+					domainList[i] = d.Domain
+				}
+				domainStr = fmt.Sprintf("%v", domainList)
+			}
+			fmt.Printf("%s\t%s\t%s\t%s\n", site.ID, site.Name, site.Slug, domainStr)
 		}
 	},
 }

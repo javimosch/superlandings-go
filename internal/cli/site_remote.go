@@ -30,9 +30,23 @@ func handleRemoteSiteList(target string) {
 		return
 	}
 	
-	fmt.Println("Slug\tName")
+	fmt.Println("ID\tName\tSlug\tDomains")
 	for _, s := range sites {
 		site := s.(map[string]interface{})
-		fmt.Printf("%s\t%s\n", site["slug"], site["name"])
+		id := ""
+		if idVal, ok := site["id"].(string); ok {
+			id = idVal
+		}
+		name := site["name"].(string)
+		slug := site["slug"].(string)
+		domains := ""
+		if domainsVal, ok := site["domains"].([]interface{}); ok && len(domainsVal) > 0 {
+			domainList := make([]string, len(domainsVal))
+			for i, d := range domainsVal {
+				domainList[i] = d.(string)
+			}
+			domains = fmt.Sprintf("%v", domainList)
+		}
+		fmt.Printf("%s\t%s\t%s\t%s\n", id, name, slug, domains)
 	}
 }
