@@ -131,7 +131,7 @@ func (s *SiteService) CreateVersion(siteID string, req CreateVersionRequest) (*d
 
 	// If this is the first version, make it active
 	if len(versions) == 0 {
-		if err := s.versionRepo.SetActiveVersion(site.ID, version.ID); err != nil {
+		if err := s.versionRepo.SetActiveVersion(site.ID, version); err != nil {
 			return nil, fmt.Errorf("failed to set active version: %w", err)
 		}
 		version.IsActive = true
@@ -176,7 +176,7 @@ func (s *SiteService) SwitchVersion(siteSlug, version string) error {
 	}
 
 	// Set as active
-	return s.versionRepo.SetActiveVersion(site.ID, targetVersion.ID)
+	return s.versionRepo.SetActiveVersion(site.ID, targetVersion)
 }
 
 // GetActiveVersionContent returns the processed content for the active version
@@ -321,4 +321,34 @@ func (s *SiteService) WriteFile(siteSlug, version, filePath, content string) err
 	}
 
 	return nil
+}
+
+// GetVersionBySiteAndVersion gets a version by site ID and version string
+func (s *SiteService) GetVersionBySiteAndVersion(siteID, version string) (*db.SiteVersion, error) {
+	return s.versionRepo.GetBySiteAndVersion(siteID, version)
+}
+
+// Export exports site metadata to JSON
+func (s *SiteService) Export(siteSlug string) (string, error) {
+	site, err := s.siteRepo.GetBySlug(siteSlug)
+	if err != nil {
+		return "", fmt.Errorf("failed to get site: %w", err)
+	}
+
+	versions, err := s.versionRepo.ListVersions(site.ID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get versions: %w", err)
+	}
+
+	exportData := map[string]interface{}{
+		"site":     site,
+		"versions": versions,
+	}
+
+	jsonData, err := json.MarshalIndent(exportData, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal export: %w", err)
+	}
+
+	return string(jsonData), nil
 }
