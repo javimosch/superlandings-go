@@ -35,16 +35,16 @@ func (s *Server) Start(port int) error {
 
 	// Setup routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.handleLanding)
-	mux.HandleFunc("/health", s.handleHealth)
 	
-	// API routes with authentication
+	// API routes must be registered before the catch-all / handler
 	apiMux := http.NewServeMux()
 	apiMux.HandleFunc("/status", s.authMiddleware(s.handleAPIStatus))
 	apiMux.HandleFunc("/sites", s.authMiddleware(s.handleAPISites))
 	apiMux.HandleFunc("/sites/", s.authMiddleware(s.handleAPISite))
 	
 	mux.Handle("/api/", http.StripPrefix("/api", apiMux))
+	mux.HandleFunc("/", s.handleLanding)
+	mux.HandleFunc("/health", s.handleHealth)
 
 	// Start server
 	addr := fmt.Sprintf(":%d", port)
@@ -189,8 +189,8 @@ func (s *Server) handleAPISites(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 	// Extract site slug from path
-	// Path format: /api/sites/{slug} or /api/sites/{slug}/{action}
-	path := strings.TrimPrefix(r.URL.Path, "/api/sites/")
+	// Path format: /sites/{slug} or /sites/{slug}/{action} (after /api/ is stripped)
+	path := strings.TrimPrefix(r.URL.Path, "/sites/")
 	parts := strings.Split(path, "/")
 	slug := parts[0]
 	action := ""
