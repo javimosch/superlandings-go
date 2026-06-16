@@ -127,14 +127,7 @@ func (c *RemoteClient) parseResponse(resp *http.Response) (map[string]interface{
 		return nil, err
 	}
 	
-	// Try to parse as array first
-	var arr []interface{}
-	if err := json.Unmarshal(body, &arr); err == nil {
-		// It's an array, wrap it in a map
-		return map[string]interface{}{"sites": arr}, nil
-	}
-	
-	// Otherwise parse as object
+	// Parse as object directly (backend now wraps arrays)
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, err

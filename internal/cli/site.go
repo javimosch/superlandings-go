@@ -121,6 +121,12 @@ var siteVersionCreateCmd = &cobra.Command{
 	Short: "Create a new version",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+		if target != "" {
+			handleRemoteVersionCreate(target, args)
+			return
+		}
+
 		if err := initializeDB(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 			os.Exit(1)
@@ -164,6 +170,12 @@ var siteVersionListCmd = &cobra.Command{
 	Short: "List all versions for a site",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+		if target != "" {
+			handleRemoteVersionList(target, args[0])
+			return
+		}
+
 		if err := initializeDB(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 			os.Exit(1)
@@ -255,6 +267,12 @@ var siteDnsSetupCmd = &cobra.Command{
 	Short: "Setup DNS for a site via hotify-cli",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+		if target != "" {
+			handleRemoteDNSSetup(target, args, cmd)
+			return
+		}
+
 		if err := initializeDB(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 			os.Exit(1)
@@ -302,6 +320,12 @@ var siteDnsListCmd = &cobra.Command{
 	Short: "List DNS domains for a site",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+		if target != "" {
+			handleRemoteDNSList(target, args[0])
+			return
+		}
+
 		if err := initializeDB(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 			os.Exit(1)
@@ -375,6 +399,10 @@ func init() {
 	siteVersionCreateCmd.Flags().String("version", "", "Version (e.g., v1, v2)")
 	siteVersionCreateCmd.Flags().String("comment", "", "Version comment")
 	siteVersionCreateCmd.Flags().String("author", "", "Author name")
+	siteVersionCreateCmd.Flags().String("target", "", "Remote target (host:port)")
+
+	siteVersionListCmd.Flags().String("target", "", "Remote target (host:port)")
+	siteVersionSwitchCmd.Flags().String("target", "", "Remote target (host:port)")
 
 	siteWriteCmd.Flags().String("content", "", "File content")
 
@@ -386,6 +414,10 @@ func init() {
 	siteDnsSetupCmd.Flags().String("domain", "", "Domain name (e.g., slv2.intrane.fr)")
 	siteDnsSetupCmd.Flags().String("ip", "", "IP address (e.g., 92.113.145.16)")
 	siteDnsSetupCmd.Flags().Bool("traefik", false, "Setup Traefik routing")
+	siteDnsSetupCmd.Flags().String("target", "", "Remote target (host:port)")
+
+	siteDnsListCmd.Flags().String("target", "", "Remote target (host:port)")
+	siteDnsRemoveCmd.Flags().String("target", "", "Remote target (host:port)")
 
 	siteDnsCmd.AddCommand(siteDnsSetupCmd)
 	siteDnsCmd.AddCommand(siteDnsListCmd)

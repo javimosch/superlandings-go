@@ -31,7 +31,7 @@ func (s *Server) Start(port int) error {
 	if err := db.Initialize(s.cfg.DatabasePath); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
 	}
-	defer db.Close()
+	// Note: Don't close database here - it needs to stay open for server lifetime
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -160,7 +160,7 @@ func (s *Server) handleAPISites(w http.ResponseWriter, r *http.Request) {
 	dnsService := services.NewDNSService(s.cfg)
 
 	// Convert to JSON manually to avoid extra dependencies
-	json := "["
+	json := "{\"sites\":["
 	for i, site := range sites {
 		if i > 0 {
 			json += ","
@@ -183,7 +183,7 @@ func (s *Server) handleAPISites(w http.ResponseWriter, r *http.Request) {
 		json += fmt.Sprintf(`{"id":"%s","slug":"%s","name":"%s","domains":%s}`,
 			site.ID, site.Slug, site.Name, domainList)
 	}
-	json += "]"
+	json += "]}"
 	w.Write([]byte(json))
 }
 
@@ -236,6 +236,17 @@ func (s *Server) handleAPISiteDetails(w http.ResponseWriter, r *http.Request, sl
 }
 
 func (s *Server) handleAPISiteVersions(w http.ResponseWriter, r *http.Request, slug string) {
+	// Check if site exists first
+	site, err := s.siteService.GetBySlug(slug)
+	if err != nil {
+		http.Error(w, "Site not found", http.StatusNotFound)
+		return
+	}
+	if site == nil {
+		http.Error(w, "Site not found", http.StatusNotFound)
+		return
+	}
+
 	versions, err := s.siteService.ListVersions(slug)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -243,15 +254,15 @@ func (s *Server) handleAPISiteVersions(w http.ResponseWriter, r *http.Request, s
 	}
 	
 	w.Header().Set("Content-Type", "application/json")
-	json := "["
+	json := "{\"versions\":["
 	for i, v := range versions {
 		if i > 0 {
 			json += ","
 		}
-		json += fmt.Sprintf(`{"version":"%s","comment":"%s","active":%t}`,
-			v.Version, v.Comment, v.IsActive)
+		json += fmt.Sprintf(`{"version":"%s","comment":"%s","is_active":%t,"path":"%s"}`,
+			v.Version, v.Comment, v.IsActive, v.Path)
 	}
-	json += "]"
+	json += "]}"
 	w.Write([]byte(json))
 }
 
