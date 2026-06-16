@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -172,7 +173,9 @@ func (s *Server) handleAPISites(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 	// Extract site slug from path
-	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/sites/"), "/")
+	// Path format: /api/sites/{slug} or /api/sites/{slug}/{action}
+	path := strings.TrimPrefix(r.URL.Path, "/api/sites/")
+	parts := strings.Split(path, "/")
 	slug := parts[0]
 	action := ""
 	if len(parts) > 1 {
@@ -237,10 +240,52 @@ func (s *Server) handleAPISiteVersions(w http.ResponseWriter, r *http.Request, s
 }
 
 func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug string) {
-	// This would handle sync operations
-	// For now, return success
+	// Only handle POST requests
+	if r.Method != "POST" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(`{"success":false,"error":"method not allowed"}`))
+		return
+	}
+	
+	// Parse request body
+	var payload map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"success":false,"error":"invalid request body"}`))
+		return
+	}
+	
+	// Check if site exists
+	sites, err := s.siteService.List()
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"success":false,"error":"failed to list sites"}`))
+		return
+	}
+	
+	siteExists := false
+	for _, site := range sites {
+		if site.Slug == slug {
+			siteExists = true
+			break
+		}
+	}
+	
+	if !siteExists {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"success":false,"error":"site not found"}`))
+		return
+	}
+	
+	// Placeholder: In a real implementation, this would trigger the sync service
+	// The sync service needs a target to sync to, which would need to be configured
+	// on the remote daemon side. For now, return success.
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"success":true,"message":"sync endpoint placeholder"}`))
+	w.Write([]byte(`{"success":true,"message":"sync triggered (placeholder implementation)"}`))
 }
 
 // authMiddleware validates Bearer token authentication

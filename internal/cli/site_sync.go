@@ -12,9 +12,18 @@ import (
 // site sync
 var siteSyncCmd = &cobra.Command{
 	Use:   "sync <site>",
-	Short: "Sync site to remote target via SSH",
+	Short: "Sync site to remote target via SSH or HTTP API",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+		
+		if target != "" {
+			// Remote HTTP sync
+			handleRemoteSiteSync(target, args[0])
+			return
+		}
+		
+		// Local SSH sync (existing implementation)
 		if err := initializeDB(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 			os.Exit(1)
@@ -27,7 +36,7 @@ var siteSyncCmd = &cobra.Command{
 		key, _ := cmd.Flags().GetString("key")
 
 		if host == "" {
-			fmt.Fprintf(os.Stderr, "Error: --host is required\n")
+			fmt.Fprintf(os.Stderr, "Error: --host is required when not using --target\n")
 			os.Exit(1)
 		}
 		if user == "" {
@@ -35,14 +44,14 @@ var siteSyncCmd = &cobra.Command{
 		}
 
 		syncService := services.NewSyncService(cfg)
-		target := services.SyncTarget{
+		syncTarget := services.SyncTarget{
 			Host: host,
 			User: user,
 			Port: port,
 			Key:  key,
 		}
 
-		if err := syncService.Sync(args[0], target); err != nil {
+		if err := syncService.Sync(args[0], syncTarget); err != nil {
 			fmt.Fprintf(os.Stderr, "Error syncing site: %v\n", err)
 			os.Exit(1)
 		}
@@ -161,6 +170,7 @@ func init() {
 	siteSyncCmd.Flags().String("user", "root", "SSH user")
 	siteSyncCmd.Flags().Int("port", 22, "SSH port")
 	siteSyncCmd.Flags().String("key", "", "SSH key path (e.g., ~/.ssh/id_rsa_srv)")
+	siteSyncCmd.Flags().String("target", "", "Remote target name (for HTTP API sync)")
 
 	siteProxyCmd.Flags().String("domain", "", "Domain name (e.g., slv2.intrane.fr)")
 	siteProxyCmd.Flags().String("internal-url", "http://127.0.0.1:3099", "Internal URL to proxy to")
