@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/javimosch/superlandings-go/internal/config"
+	"github.com/javimosch/superlandings-go/internal/db"
 )
 
 type SyncService struct {
@@ -128,6 +129,39 @@ type SyncTarget struct {
 
 // Sync syncs a site to a remote target
 func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
+	// Ensure site exists locally before exporting
+	site, err := s.siteService.GetBySlug(siteSlug)
+	if err != nil {
+		return fmt.Errorf("site not found locally: %w", err)
+	}
+
+	// Get active version to sync
+	versions, err := s.siteService.ListVersions(siteSlug)
+	if err != nil {
+		return fmt.Errorf("failed to get versions: %w", err)
+	}
+	if len(versions) == 0 {
+		return fmt.Errorf("no versions found for site")
+	}
+
+	// Use the active version, or the first version if none is active
+	var activeVersion *db.SiteVersion
+	for i := range versions {
+		if versions[i].IsActive {
+			activeVersion = &versions[i]
+			break
+		}
+	}
+	if activeVersion == nil && len(versions) > 0 {
+		activeVersion = &versions[0]
+	}
+	
+	if activeVersion == nil {
+		return fmt.Errorf("no valid version found")
+	}
+	
+	version := activeVersion.Version
+
 	// Export site metadata
 	exportData, err := s.siteService.Export(siteSlug)
 	if err != nil {
@@ -142,9 +176,9 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 	defer os.Remove(tempFile)
 
 	// Sync site directory via rsync
-	sitePath := filepath.Join(s.cfg.SitesDir, siteSlug)
-	remotePath := fmt.Sprintf("%s@%s:~/.superlandings/sites/%s",
-		target.User, target.Host, siteSlug)
+	sitePath := filepath.Join(s.cfg.SitesDir, siteSlug, version)
+	remotePath := fmt.Sprintf("%s@%s:~/.superlandings/sites/%s/%s",
+		target.User, target.Host, siteSlug, version)
 
 	rsyncArgs := []string{"-avz"}
 	if target.Key != "" {
@@ -159,6 +193,26 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 	rsyncCmd := exec.Command("rsync", rsyncArgs...)
 	if output, err := rsyncCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to rsync site files: %w, output: %s", err, string(output))
+	}
+
+	// Ensure site and version exist on remote before import
+	ensureSiteCmd := fmt.Sprintf("sl-cli site create --name '%s' --slug %s 2>/dev/null || true", site.Name, siteSlug)
+	ensureVersionCmd := fmt.Sprintf("sl-cli site version create %s --version %s --comment 'Synced from local' 2>/dev/null || true", siteSlug, version)
+	
+	sshArgs := []string{}
+	if target.Key != "" {
+		sshArgs = append(sshArgs, "-i", target.Key, "-o", "IdentitiesOnly=yes")
+	}
+	if target.Port != 22 {
+		sshArgs = append(sshArgs, "-p", fmt.Sprintf("%d", target.Port))
+	}
+	
+	ensureArgs := append(sshArgs, fmt.Sprintf("%s@%s", target.User, target.Host), ensureSiteCmd+"; "+ensureVersionCmd)
+	ensureExecCmd := exec.Command("ssh", ensureArgs...)
+	if output, err := ensureExecCmd.CombinedOutput(); err != nil {
+		// Don't fail if ensure fails - import might still work
+		fmt.Printf("Warning: Failed to ensure site/version on remote: %v\n", err)
+		fmt.Printf("Output: %s\n", string(output))
 	}
 
 	// Copy export file to remote
@@ -177,7 +231,7 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 	}
 
 	// Import metadata on remote
-	sshArgs := []string{}
+	sshArgs = []string{}
 	if target.Key != "" {
 		sshArgs = append(sshArgs, "-i", target.Key, "-o", "IdentitiesOnly=yes")
 	}

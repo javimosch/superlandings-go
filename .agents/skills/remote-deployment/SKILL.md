@@ -356,15 +356,27 @@ sl-cli site sync <slug> --host <server> --user <user> --key <key>
 
 ### Deployment Best Practices
 
-1. **Verify files before daemon restart**: After sync, check if files exist on remote (`ls -la ~/.superlandings/sites/<slug>/<version>/`) before restarting daemon.
+1. **Use sl-cli sync for deployment**: The sync command is now robust and handles:
+   - Auto-creation of sites on remote if they don't exist
+   - Auto-creation of versions on remote if they don't exist
+   - Syncing the active version (or first version if none active)
+   - No manual scp needed for initial deployment
+   - No manual site/version creation needed
 
-2. **Test site access directly**: Use `curl http://<server>:<port>/<slug>/` to test site access instead of assuming daemon restart is needed.
+2. **Use hotify for Traefik configuration**: Never manually edit `/etc/traefik/dynamic.yml`. Use hotify-cli:
+   - `hotify-cli setup --id <app> --domain <domain> --port <port> --cmd <cmd>`
+   - `hotify-cli setup-traefik --id <app> --challenge-type http`
+   - This ensures proper configuration management and DNS integration
 
-3. **Keep daemon alive during sync**: The sync process transfers files and imports metadata while daemon is running - no need to stop it first.
+3. **Verify files before daemon restart**: After sync, check if files exist on remote (`ls -la ~/.superlandings/sites/<slug>/<version>/`) before restarting daemon.
 
-4. **Use SSH for initial deployment**: SSH-based sync (`--host`) is more reliable for initial deployment. HTTP API sync (`--target`) is better for ongoing operations once daemon is stable.
+4. **Test site access directly**: Use `curl http://<server>:<port>/<slug>/` to test site access instead of assuming daemon restart is needed.
 
-5. **Check sync logs**: If sync fails, check the specific error output - rsync, scp, and ssh each have their own error messages that help diagnose issues.
+5. **Keep daemon alive during sync**: The sync process transfers files and imports metadata while daemon is running - no need to stop it first.
+
+6. **Use SSH for initial deployment**: SSH-based sync (`--host`) is more reliable for initial deployment. HTTP API sync (`--target`) is better for ongoing operations once daemon is stable.
+
+7. **Check sync logs**: If sync fails, check the specific error output - rsync, scp, and ssh each have their own error messages that help diagnose issues.
 
 ## Migration from sl-cli v1 to v2
 
@@ -388,30 +400,22 @@ sl-cli site version create <slug> --version v1 --comment "Migrated from v1"
 cp /tmp/<slug>.html ~/.superlandings/sites/<slug>/v1/index.html
 ```
 
-4. **Deploy to remote:**
+4. **Deploy to remote (robust sync):**
 ```bash
-# Create site on remote first
-ssh user@server "sl-cli site create --name '<Site Name>' --slug <slug>"
-ssh user@server "mkdir -p ~/.superlandings/sites/<slug>/v1"
-
-# Copy files
-scp ~/.superlandings/sites/<slug>/v1/index.html user@server:~/.superlandings/sites/<slug>/v1/index.html
-
-# Create version on remote
-ssh user@server "sl-cli site version create <slug> --version v1 --comment 'Migrated from v1'"
+# Sync handles auto-creation of site/version on remote
+sl-cli site sync <slug> --host <server> --user <user> --key <key>
 ```
 
-5. **Configure Traefik on remote:**
+5. **Configure Traefik via hotify:**
 ```bash
-# Add to /etc/traefik/dynamic.yml
-# Include router, service, and middleware with addPrefix
-sudo systemctl restart traefik
+hotify-cli setup --id <app-id> --name <name> --domain <domain> --port 3100 --cmd "true"
+hotify-cli setup-traefik --id <app-id> --challenge-type http
 ```
 
 6. **Configure DNS:**
-- Use hotify-cli or manually update Cloudflare
-- Point domain to server IP
-- Ensure Traefik SSL cert is configured
+```bash
+hotify-cli setup-dns --id <app-id> --ip <server-ip> --local
+```
 
 ### Migration Example (intrane.fr → intrane.intrane.fr):
 
@@ -423,20 +427,21 @@ MODE=staging node cli/index.js landing content get intrane-fr --output /tmp/intr
 # Create in v2
 cd ~/ai/superlandings-go
 sl-cli site create --name "Intrane.fr" --slug intrane
-sl-cli site version create intrane --version v1 --comment "Migrated from sl-cli v1"
+sl-cli site version create intrane --version v1 --comment "Migrated from v1"
 cp /tmp/intrane-fr.html ~/.superlandings/sites/intrane/v1/index.html
 
-# Deploy to dk2
-ssh dk2 "sl-cli site create --name 'Intrane.fr' --slug intrane"
-ssh dk2 "mkdir -p ~/.superlandings/sites/intrane/v1"
-scp ~/.superlandings/sites/intrane/v1/index.html dk2@server:~/.superlandings/sites/intrane/v1/index.html
-ssh dk2 "sl-cli site version create intrane --version v1 --comment 'Migrated from v1'"
+# Deploy to dk2 (robust sync - auto-creates site/version)
+sl-cli site sync intrane --host 92.113.145.16 --user dk2 --key ~/.ssh/id_rsa_srv
 
-# Configure Traefik (add to /etc/traefik/dynamic.yml)
-# Restart traefik
+# Configure Traefik via hotify
+hotify-cli setup --id intrane --name intrane --domain intrane.intrane.fr --port 3100 --cmd "true"
+hotify-cli setup-traefik --id intrane --challenge-type http
+
+# Configure DNS
+hotify-cli setup-dns --id intrane --ip 92.113.145.16 --local
 ```
 
-**Note:** Sync command (`sl-cli site sync`) may fail if site exists on remote but has no versions. Manual copy is more reliable for initial migration.
+**Note:** The sync command now handles auto-creation of sites and versions on the remote, eliminating the need for manual scp and manual site/version creation. Use hotify-cli for all Traefik configuration - never manually edit `/etc/traefik/dynamic.yml`.
 
 ## References
 
