@@ -108,6 +108,15 @@ var backendStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Check backend daemon status",
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+		
+		if target != "" {
+			// Remote execution
+			handleRemoteBackendStatus(target)
+			return
+		}
+		
+		// Local execution
 		running, pid, err := daemon.Status(cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error checking status: %v\n", err)
@@ -128,6 +137,7 @@ func init() {
 	backendStartCmd.Flags().Bool("daemon", false, "Run as daemon in background")
 	backendStartCmd.Flags().Bool("no-systemd", false, "Disable systemd auto-installation")
 	backendStopCmd.Flags().Bool("uninstall", false, "Stop and uninstall systemd service")
+	backendStatusCmd.Flags().String("target", "", "Remote target (host:port)")
 	
 	backendCmd.AddCommand(backendStartCmd)
 	backendCmd.AddCommand(backendStopCmd)
