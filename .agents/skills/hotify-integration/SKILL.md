@@ -17,21 +17,26 @@ The `hotify-cli setup-traefik` command is specifically for ACME certificate setu
 
 When using `--backend-url`:
 - hotify-cli stores the backend URL in `~/.hotify/config.json`
-- But it does NOT generate router/service configuration in `/etc/traefik/dynamic.yml`
-- Manual Traefik config is required for path prefix middleware
+- It DOES generate router/service configuration in `/etc/traefik/dynamic.yml` (as of v2.10.1)
+- Path prefix middleware is now supported via `--path-prefix` flag
 
 ## Deployment Workflow
 
 ### 1. Register App with hotify-cli
 
 ```bash
-hotify-cli setup --id <APP_ID> --name <APP_NAME> --domain <DOMAIN> --port <PORT> --backend-url http://127.0.0.1:<PORT> --cmd 'sleep infinity'
+hotify-cli setup --id <APP_ID> --name <APP_NAME> --domain <DOMAIN> --port <PORT> --backend-url http://127.0.0.1:<PORT> --cmd 'sleep infinity' --path-prefix /<SITE_SLUG>
 ```
 
 **Why `sleep infinity`?**
 - hotify-cli expects a command that keeps the process alive
 - `true` exits immediately, breaking the proxy
 - `sleep infinity` keeps the process running as a placeholder
+
+**Why `--path-prefix`?**
+- Services like sl-cli serve sites at paths like `/<SITE_SLUG>/`, `/other-site/`
+- The `--path-prefix` flag automatically generates Traefik addPrefix middleware
+- This routes domain root to the correct path without manual configuration
 
 ### 2. Configure DNS
 
@@ -46,35 +51,13 @@ hotify-cli setup-dns --id <APP_ID> --ip <SERVER_IP> --local
 sudo chown <USER>:<USER> /etc/traefik/dynamic.yml /etc/traefik/traefik.yml
 ```
 
-### 4. Manual Traefik Configuration
+### 4. Setup Traefik (automatic with --path-prefix)
 
 ```bash
-sudo tee /etc/traefik/dynamic.yml > /dev/null << 'EOF'
-http:
-  routers:
-    <APP_ID>:
-      rule: "Host(\`<DOMAIN>\`)"
-      service: <APP_ID>
-      entryPoints:
-        - web
-      middlewares:
-        - <APP_ID>-addprefix
-  services:
-    <APP_ID>:
-      loadBalancer:
-        servers:
-          - url: "http://127.0.0.1:<PORT>"
-  middlewares:
-    <APP_ID>-addprefix:
-      addPrefix:
-        prefix: "/<SITE_SLUG>"
-EOF
+hotify-cli setup-traefik --id <APP_ID>
 ```
 
-**Why path prefix middleware?**
-- sl-cli serves sites at paths like `/<SITE_SLUG>/`, `/other-site/`
-- Domain root needs to be routed to `/<SITE_SLUG>/`
-- Traefik addPrefix middleware adds the site slug to the request path
+This automatically generates the router, service, and addPrefix middleware in `/etc/traefik/dynamic.yml` when `--path-prefix` was used during setup.
 
 ### 5. Restart Traefik
 
@@ -107,16 +90,19 @@ sl-cli site dns setup <SITE_SLUG> --domain <DOMAIN>
 sl-cli site dns list <SITE_SLUG>
 sl-cli site dns remove <SITE_SLUG>
 
-# Proxy setup (currently requires manual Traefik config)
-sl-cli site proxy <SITE_SLUG> --domain <DOMAIN> --internal-url http://127.0.0.1:<PORT>
+# Proxy setup (now supports --path-prefix)
+sl-cli site proxy <SITE_SLUG> --domain <DOMAIN> --internal-url http://127.0.0.1:<PORT> --path-prefix /<SITE_SLUG>
 ```
 
 ## Known Issues
 
-1. **No automatic router/service config** - Must manually edit `/etc/traefik/dynamic.yml`
-2. **Config ownership** - Traefik files must be owned by the user running hotify-cli
-3. **Domain duplication** - hotify-cli may append base domain twice
-4. **Placeholder command required** - Need `sleep infinity` instead of `true` for backend-url
+1. **Config ownership** - Traefik files must be owned by the user running hotify-cli
+2. **Domain duplication** - hotify-cli may append base domain twice
+3. **Placeholder command required** - Need `sleep infinity` instead of `true` for backend-url
+
+**Fixed in hotify-cli v2.10.1:**
+- ✅ Router/service configuration now generated automatically
+- ✅ Path prefix middleware support via `--path-prefix` flag
 
 ## References
 
