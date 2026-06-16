@@ -43,6 +43,9 @@ func (s *Server) Start(port int) error {
 	// API routes must be registered before the catch-all / handler
 	apiMux := http.NewServeMux()
 	apiMux.HandleFunc("/status", s.authMiddleware(s.handleAPIStatus))
+	apiMux.HandleFunc("/users", s.authMiddleware(s.handleAPIUsers))
+	apiMux.HandleFunc("/users/", s.authMiddleware(s.handleAPIUserPassword))
+	apiMux.HandleFunc("/users/grant", s.authMiddleware(s.handleAPIUserGrant))
 	apiMux.HandleFunc("/sites", s.authMiddleware(s.handleAPISites))
 	apiMux.HandleFunc("/sites/", s.authMiddleware(s.handleAPISite))
 
@@ -224,6 +227,8 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 		s.handleAPISiteWrite(w, r, slug)
 	case "files":
 		s.handleAdminAPIFiles(w, r)
+	case "admin":
+		s.handleAPISiteAdmin(w, r)
 	default:
 		// Check if it's a file read path (sites/{slug}/files/{path})
 		if strings.HasPrefix(action, "files/") {

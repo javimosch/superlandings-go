@@ -25,6 +25,13 @@ var siteAdminCreateCmd = &cobra.Command{
 	Short: "Create admin URL for a site",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+
+		if target != "" {
+			handleRemoteSiteAdminCreate(target, args[0])
+			return
+		}
+
 		siteSlug := args[0]
 
 		cfg, err := config.Load()
@@ -79,6 +86,13 @@ var siteAdminViewCmd = &cobra.Command{
 	Short: "View admin URL for a site",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+
+		if target != "" {
+			handleRemoteSiteAdminView(target, args[0])
+			return
+		}
+
 		siteSlug := args[0]
 
 		cfg, err := config.Load()
@@ -129,6 +143,13 @@ var siteAdminRotateCmd = &cobra.Command{
 	Short: "Rotate admin token for a site",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+
+		if target != "" {
+			handleRemoteSiteAdminRotate(target, args[0])
+			return
+		}
+
 		siteSlug := args[0]
 
 		cfg, err := config.Load()
@@ -183,6 +204,13 @@ var siteAdminRevokeCmd = &cobra.Command{
 	Short: "Revoke all admin tokens for a site",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+
+		if target != "" {
+			handleRemoteSiteAdminRevoke(target, args[0])
+			return
+		}
+
 		siteSlug := args[0]
 
 		cfg, err := config.Load()
@@ -222,10 +250,83 @@ var siteAdminRevokeCmd = &cobra.Command{
 }
 
 func init() {
+	siteAdminCreateCmd.Flags().String("target", "", "Remote target (host:port)")
+	siteAdminViewCmd.Flags().String("target", "", "Remote target (host:port)")
+	siteAdminRotateCmd.Flags().String("target", "", "Remote target (host:port)")
+	siteAdminRevokeCmd.Flags().String("target", "", "Remote target (host:port)")
+
 	siteAdminCmd.AddCommand(siteAdminCreateCmd)
 	siteAdminCmd.AddCommand(siteAdminViewCmd)
 	siteAdminCmd.AddCommand(siteAdminRotateCmd)
 	siteAdminCmd.AddCommand(siteAdminRevokeCmd)
+}
+
+func handleRemoteSiteAdminCreate(target, siteSlug string) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	result, err := client.CreateSiteAdminToken(siteSlug)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Println(string(jsonData))
+}
+
+func handleRemoteSiteAdminView(target, siteSlug string) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	result, err := client.GetSiteAdminToken(siteSlug)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Println(string(jsonData))
+}
+
+func handleRemoteSiteAdminRotate(target, siteSlug string) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	result, err := client.RotateSiteAdminToken(siteSlug)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Println(string(jsonData))
+}
+
+func handleRemoteSiteAdminRevoke(target, siteSlug string) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	result, err := client.RevokeSiteAdminToken(siteSlug)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Println(string(jsonData))
 }
 
 func generateRandomToken(length int) string {

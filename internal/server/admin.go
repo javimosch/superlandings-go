@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -509,6 +511,244 @@ func (s *Server) handleAdminAPIFileRead(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// handleAPIUsers handles user API operations
+func (s *Server) handleAPIUsers(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		// List users
+		userRepo := db.NewUserRepository()
+		users, err := userRepo.List()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"users": users})
+		return
+	}
+
+	if r.Method == "POST" {
+		// Create user
+		var payload struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+			Role     string `json:"role"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		userRepo := db.NewUserRepository()
+		user := &db.User{
+			ID:   generateID(),
+			Email: payload.Email,
+			Role: payload.Role,
+		}
+
+		if err := userRepo.Create(user, payload.Password); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"user":    user,
+		})
+		return
+	}
+
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+// handleAPIUserPassword handles password update
+func (s *Server) handleAPIUserPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract email from path
+	path := strings.TrimPrefix(r.URL.Path, "/users/")
+	email := strings.TrimSuffix(path, "/password")
+
+	var payload struct {
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	userRepo := db.NewUserRepository()
+	if err := userRepo.UpdatePassword(email, payload.Password); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Password updated successfully",
+	})
+}
+
+// handleAPIUserGrant handles granting site access
+func (s *Server) handleAPIUserGrant(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		SiteSlug string `json:"site_slug"`
+		Email    string `json:"email"`
+		Role     string `json:"role"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Get site
+	siteRepo := db.NewSiteRepository()
+	site, err := siteRepo.GetBySlug(payload.SiteSlug)
+	if err != nil {
+		http.Error(w, "Site not found", http.StatusNotFound)
+		return
+	}
+
+	// Get user
+	userRepo := db.NewUserRepository()
+	user, err := userRepo.GetByEmail(payload.Email)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	// Grant access
+	if err := userRepo.GrantSiteAccess(site.ID, user.ID, payload.Role); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Granted %s access to %s", payload.Role, payload.SiteSlug),
+	})
+}
+
+func generateRandomToken(length int) string {
+	b := make([]byte, length)
+	rand.Read(b)
+	return hex.EncodeToString(b)[:length]
+}
+
+// handleAPISiteAdmin handles site admin token operations
+func (s *Server) handleAPISiteAdmin(w http.ResponseWriter, r *http.Request) {
+	// Extract site slug from path
+	path := strings.TrimPrefix(r.URL.Path, "/sites/")
+	parts := strings.Split(path, "/")
+	siteSlug := parts[0]
+
+	// Get site
+	siteRepo := db.NewSiteRepository()
+	site, err := siteRepo.GetBySlug(siteSlug)
+	if err != nil {
+		http.Error(w, "Site not found", http.StatusNotFound)
+		return
+	}
+
+	adminRepo := db.NewSiteAdminRepository()
+
+	if r.Method == "POST" {
+		// Create admin token
+		token := generateRandomToken(32)
+		expiresAt := time.Now().Add(30 * 24 * time.Hour)
+
+		if err := adminRepo.CreateAdminToken(site.ID, token, &expiresAt); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		adminURL := fmt.Sprintf("/admin/%s/%s", siteSlug, token)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":   true,
+			"admin_url": adminURL,
+			"token":     token,
+			"expires_at": expiresAt,
+		})
+		return
+	}
+
+	if r.Method == "GET" {
+		// View admin token
+		token, err := adminRepo.GetActiveTokenBySite(site.ID)
+		if err != nil {
+			http.Error(w, "No active admin token found", http.StatusNotFound)
+			return
+		}
+
+		adminURL := fmt.Sprintf("/admin/%s/%s", siteSlug, token.Token)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":   true,
+			"admin_url": adminURL,
+			"token":     token.Token,
+			"created_at": token.CreatedAt,
+			"expires_at": token.ExpiresAt,
+		})
+		return
+	}
+
+	if r.Method == "PUT" {
+		// Rotate admin token
+		newToken := generateRandomToken(32)
+		expiresAt := time.Now().Add(30 * 24 * time.Hour)
+
+		if err := adminRepo.RotateToken(site.ID, newToken, &expiresAt); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		adminURL := fmt.Sprintf("/admin/%s/%s", siteSlug, newToken)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":   true,
+			"admin_url": adminURL,
+			"token":     newToken,
+			"expires_at": expiresAt,
+		})
+		return
+	}
+
+	if r.Method == "DELETE" {
+		// Revoke admin tokens
+		if err := adminRepo.RevokeAllTokens(site.ID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "All admin tokens revoked",
+		})
+		return
+	}
+
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
 // JWT Claims
 type Claims struct {
 	UserID string `json:"user_id"`
@@ -546,4 +786,10 @@ func validateJWT(tokenString string) (*Claims, error) {
 	}
 
 	return nil, fmt.Errorf("invalid token")
+}
+
+func generateID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }

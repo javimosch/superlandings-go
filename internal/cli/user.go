@@ -27,6 +27,13 @@ var userListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all users",
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+
+		if target != "" {
+			handleRemoteUserList(target)
+			return
+		}
+
 		cfg, err := config.Load()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
@@ -57,6 +64,13 @@ var userCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new user",
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+
+		if target != "" {
+			handleRemoteUserCreate(target, cmd)
+			return
+		}
+
 		if userEmail == "" {
 			fmt.Fprintf(os.Stderr, "Error: --email is required\n")
 			os.Exit(1)
@@ -108,6 +122,13 @@ var userPasswordCmd = &cobra.Command{
 	Short: "Set a user's password",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+
+		if target != "" {
+			handleRemoteUserPassword(target, args, cmd)
+			return
+		}
+
 		email := args[0]
 		if userPassword == "" {
 			fmt.Fprintf(os.Stderr, "Error: --password is required\n")
@@ -186,6 +207,13 @@ var userGrantCmd = &cobra.Command{
 	Short: "Grant a user access to a site",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+
+		if target != "" {
+			handleRemoteUserGrant(target, args, cmd)
+			return
+		}
+
 		siteSlug := args[0]
 		email := args[1]
 		if userRole == "" {
@@ -236,19 +264,95 @@ var userGrantCmd = &cobra.Command{
 }
 
 func init() {
+	userListCmd.Flags().String("target", "", "Remote target (host:port)")
+
 	userCreateCmd.Flags().StringVar(&userEmail, "email", "", "User email")
 	userCreateCmd.Flags().StringVar(&userPassword, "password", "", "User password")
 	userCreateCmd.Flags().StringVar(&userRole, "role", "", "User role (admin, editor, viewer)")
+	userCreateCmd.Flags().String("target", "", "Remote target (host:port)")
 
 	userPasswordCmd.Flags().StringVar(&userPassword, "password", "", "New password")
+	userPasswordCmd.Flags().String("target", "", "Remote target (host:port)")
 
 	userGrantCmd.Flags().StringVar(&userRole, "role", "", "Role to grant (editor, viewer)")
+	userGrantCmd.Flags().String("target", "", "Remote target (host:port)")
 
 	userCmd.AddCommand(userListCmd)
 	userCmd.AddCommand(userCreateCmd)
 	userCmd.AddCommand(userPasswordCmd)
 	userCmd.AddCommand(userResetPasswordCmd)
 	userCmd.AddCommand(userGrantCmd)
+}
+
+func handleRemoteUserList(target string) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	result, err := client.ListUsers()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Println(string(jsonData))
+}
+
+func handleRemoteUserCreate(target string, cmd *cobra.Command) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	result, err := client.CreateUser(userEmail, userPassword, userRole)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Println(string(jsonData))
+}
+
+func handleRemoteUserPassword(target string, args []string, cmd *cobra.Command) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	email := args[0]
+	result, err := client.SetUserPassword(email, userPassword)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Println(string(jsonData))
+}
+
+func handleRemoteUserGrant(target string, args []string, cmd *cobra.Command) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	siteSlug := args[0]
+	email := args[1]
+	result, err := client.GrantSiteAccess(siteSlug, email, userRole)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	fmt.Println(string(jsonData))
 }
 
 func generateID() string {
