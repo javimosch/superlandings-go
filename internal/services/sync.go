@@ -143,16 +143,16 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 
 	// Sync site directory via rsync
 	sitePath := filepath.Join(s.cfg.SitesDir, siteSlug)
-	portFlag := ""
-	if target.Port != 22 {
-		portFlag = fmt.Sprintf("-p %d", target.Port)
-	}
-	remotePath := fmt.Sprintf("%s@%s:%s/.superlandings/sites/%s",
-		target.User, target.Host, portFlag, siteSlug)
+	remotePath := fmt.Sprintf("%s@%s:~/.superlandings/sites/%s",
+		target.User, target.Host, siteSlug)
 
 	rsyncArgs := []string{"-avz"}
 	if target.Key != "" {
-		rsyncArgs = append(rsyncArgs, "-e", fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", target.Key))
+		sshCmd := fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", target.Key)
+		if target.Port != 22 {
+			sshCmd += fmt.Sprintf(" -p %d", target.Port)
+		}
+		rsyncArgs = append(rsyncArgs, "-e", sshCmd)
 	}
 	rsyncArgs = append(rsyncArgs, sitePath+"/", remotePath+"/")
 
@@ -166,6 +166,9 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 	if target.Key != "" {
 		scpArgs = append(scpArgs, "-i", target.Key, "-o", "IdentitiesOnly=yes")
 	}
+	if target.Port != 22 {
+		scpArgs = append(scpArgs, "-P", fmt.Sprintf("%d", target.Port))
+	}
 	scpArgs = append(scpArgs, tempFile, fmt.Sprintf("%s@%s:/tmp/site-import.json", target.User, target.Host))
 
 	scpCmd := exec.Command("scp", scpArgs...)
@@ -178,6 +181,9 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 	if target.Key != "" {
 		sshArgs = append(sshArgs, "-i", target.Key, "-o", "IdentitiesOnly=yes")
 	}
+	if target.Port != 22 {
+		sshArgs = append(sshArgs, "-p", fmt.Sprintf("%d", target.Port))
+	}
 	sshArgs = append(sshArgs, fmt.Sprintf("%s@%s", target.User, target.Host), "sl-cli site import --input /tmp/site-import.json")
 
 	sshCmd := exec.Command("ssh", sshArgs...)
@@ -189,6 +195,9 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 	restartArgs := []string{}
 	if target.Key != "" {
 		restartArgs = append(restartArgs, "-i", target.Key, "-o", "IdentitiesOnly=yes")
+	}
+	if target.Port != 22 {
+		restartArgs = append(restartArgs, "-p", fmt.Sprintf("%d", target.Port))
 	}
 	restartArgs = append(restartArgs, fmt.Sprintf("%s@%s", target.User, target.Host), "pkill -f 'sl-cli backend' && sl-cli backend start --daemon --port 3100")
 
