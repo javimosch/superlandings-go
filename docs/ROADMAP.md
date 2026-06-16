@@ -88,6 +88,27 @@ sl-cli site domain remove my-site --domain mysite.com
 - CLI commands for domain management
 - Validation and conflict detection
 
+### 1.4 Go Templates
+**Priority:** High
+**Effort:** ✅ Completed
+
+Server-side template rendering with Go's html/template:
+```bash
+# Go templates supported
+sl-cli site write my-site v1 "index.html" --content '<h1>{{.title}}</h1>{{if .showBanner}}<div>{{.bannerText}}</div>{{end}}{{range .posts}}<h2>{{.title}}</h2>{{end}}'
+# Create index.html.data.json with {"title":"My Site","showBanner":true,"bannerText":"Welcome!","posts":[{"title":"Post 1"}]}
+```
+
+**Deliverables:**
+- ✅ Go template engine integration (html/template)
+- ✅ Data file support (`.html.data.json`)
+- ✅ Template rendering at serve time
+- ✅ Variables, conditionals, loops support
+- ✅ Auto-escaping for security (XSS protection)
+- ✅ Backward compatible with custom include syntax
+
+**Note:** This replaces the previously planned EJS rendering (Node.js only). Go's html/template is built-in, secure, and has no external dependencies.
+
 
 
 ---
