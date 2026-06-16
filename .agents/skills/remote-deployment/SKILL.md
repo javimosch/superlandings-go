@@ -9,6 +9,42 @@ description: Deploy SuperLandings Go to remote servers with hotify-cli and Traef
 
 Deploy SuperLandings Go to remote servers with hotify-cli DNS management and Traefik reverse proxy.
 
+## New: Remote Execution via HTTP API
+
+The sl-cli now supports remote execution via HTTP API, allowing you to manage sites from local CLI without direct SSH access to the server.
+
+### Remote Execution Setup
+
+```bash
+# 1. Add remote target (one-time setup)
+sl-cli targets add --name dk2 --host 92.113.145.16 --port 3100 --token <auth-token> --default
+
+# 2. Start daemon with auth token on remote server
+ssh user@server "sl-cli backend start --daemon --port 3100 --auth-token <auth-token>"
+
+# 3. Use remote commands from local (no SSH needed!)
+sl-cli site list --target dk2
+sl-cli backend status --target dk2
+sl-cli site sync slv2 --target dk2
+```
+
+### Remote Sync Configuration
+
+For the daemon to perform syncs, configure a sync target on the remote server:
+
+```bash
+# Start daemon with sync target configured
+sl-cli backend start --daemon --port 3100 --auth-token <auth-token> \
+  --sync-host <production-server> \
+  --sync-user root \
+  --sync-key ~/.ssh/production_key
+```
+
+The sync will:
+1. Rsync site files from daemon to production server
+2. Export/import site metadata via sl-cli
+3. Restart daemon on production server
+
 ## Prerequisites
 
 - SSH access to remote server
@@ -47,6 +83,10 @@ ssh -i <SSH_KEY> <USER>@<SERVER_IP> "mkdir -p /home/<USER>/.superlandings && ech
 ### 4. Start Daemon on Remote Server
 
 ```bash
+# With authentication and sync target (recommended)
+ssh -i <SSH_KEY> <USER>@<SERVER_IP> "sl-cli backend start --daemon --port <PORT> --auth-token <TOKEN> --sync-host <PROD_SERVER> --sync-key ~/.ssh/prod_key"
+
+# Simple start (no auth, no sync)
 ssh -i <SSH_KEY> <USER>@<SERVER_IP> "sl-cli backend start --daemon --port <PORT>"
 ```
 
@@ -58,13 +98,23 @@ ssh -i <SSH_KEY> <USER>@<SERVER_IP> "sl-cli backend start --daemon --port <PORT>
 
 ### 5. Sync Site Files
 
-**Option A: Using sl-cli sync command**
+**Option A: Using remote execution (NEW - recommended)**
+
+```bash
+# Setup target once
+sl-cli targets add --name dk2 --host 92.113.145.16 --port 3100 --token <auth-token>
+
+# Sync via HTTP API
+sl-cli site sync <SITE_SLUG> --target dk2
+```
+
+**Option B: Using sl-cli sync command (SSH-based)**
 
 ```bash
 sl-cli site sync <SITE_SLUG> --host <SERVER_IP> --user <USER> --key <SSH_KEY>
 ```
 
-**Option B: Manual sync (current workaround)**
+**Option C: Manual sync (legacy)**
 
 ```bash
 # Create site directory on remote
@@ -127,6 +177,38 @@ ssh -i <SSH_KEY> <USER>@<SERVER_IP> "curl -s http://localhost:<PORT>/<SITE_SLUG>
 
 # Test domain access
 curl -s http://<DOMAIN>
+
+# Test remote execution
+sl-cli site list --target dk2
+sl-cli backend status --target dk2
+```
+
+## Remote Execution Commands
+
+### Target Management
+
+```bash
+# List configured targets
+sl-cli targets list
+
+# Add a new target
+sl-cli targets add --name <name> --host <host> --port <port> --token <auth-token> --default
+
+# Remove a target
+sl-cli targets remove <name>
+```
+
+### Remote Operations
+
+```bash
+# List sites on remote
+sl-cli site list --target <target-name>
+
+# Check daemon status on remote
+sl-cli backend status --target <target-name>
+
+# Sync site to remote (via HTTP API)
+sl-cli site sync <site-slug> --target <target-name>
 ```
 
 ## Troubleshooting
@@ -204,6 +286,33 @@ ssh <USER>@<SERVER_IP> "sudo tailscale up"
 - Tailscale Funnel uses port 443 and conflicts with Traefik HTTPS
 - Old iptables redirect rules (443 → 8443) from previous configurations
 - These rules block external HTTPS access while local access works fine
+
+### Remote Execution Fails
+
+```bash
+# Check if daemon is running with auth token
+ssh <USER>@<SERVER_IP> "ps aux | grep sl-cli"
+
+# Check daemon logs
+ssh <USER>@<SERVER_IP> "tail -50 /home/<USER>/.superlandings/sl-cli.log"
+
+# Verify target configuration
+sl-cli targets list
+
+# Test API endpoint directly
+curl -H "Authorization: Bearer <token>" http://<host>:<port>/api/status
+```
+
+### Sync Target Not Configured
+
+```bash
+# Check if sync target is configured on daemon
+curl -H "Authorization: Bearer <token>" -X POST http://<host>:<port>/api/sites/<slug>/sync
+
+# If returns "sync target not configured on daemon", restart daemon with sync flags
+sl-cli backend start --daemon --port <port> --auth-token <token> \
+  --sync-host <prod-server> --sync-key ~/.ssh/prod_key
+```
 
 ## References
 
