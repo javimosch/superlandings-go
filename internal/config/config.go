@@ -14,6 +14,7 @@ type Config struct {
 	LogFile      string
 	UIDir        string // For UI override mode
 	ServerPort   int
+	AuthToken   string // API authentication token
 }
 
 func Load() (*Config, error) {

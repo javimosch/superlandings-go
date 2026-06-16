@@ -22,12 +22,16 @@ var backendStartCmd = &cobra.Command{
 		port, _ := cmd.Flags().GetInt("port")
 		daemonMode, _ := cmd.Flags().GetBool("daemon")
 		noSystemd, _ := cmd.Flags().GetBool("no-systemd")
+		authToken, _ := cmd.Flags().GetString("auth-token")
+
+		// Set auth token in config
+		cfg.AuthToken = authToken
 
 		if daemonMode {
 			// Try systemd first if available and not disabled
 			if !noSystemd && isSystemdAvailable() {
 				fmt.Println("Systemd detected, installing service...")
-				if err := installAndStartSystemdService(port); err != nil {
+				if err := installAndStartSystemdService(port, authToken); err != nil {
 					fmt.Fprintf(os.Stderr, "Systemd installation failed: %v\n", err)
 					fmt.Println("Falling back to basic daemon mode...")
 					if err := daemon.StartDaemon(cfg, port); err != nil {
@@ -136,6 +140,7 @@ func init() {
 	backendStartCmd.Flags().Int("port", 8080, "Port for HTTP server")
 	backendStartCmd.Flags().Bool("daemon", false, "Run as daemon in background")
 	backendStartCmd.Flags().Bool("no-systemd", false, "Disable systemd auto-installation")
+	backendStartCmd.Flags().String("auth-token", "", "API authentication token")
 	backendStopCmd.Flags().Bool("uninstall", false, "Stop and uninstall systemd service")
 	backendStatusCmd.Flags().String("target", "", "Remote target (host:port)")
 	
@@ -165,7 +170,7 @@ func isSystemdServiceInstalled() bool {
 	return true
 }
 
-func installAndStartSystemdService(port int) error {
+func installAndStartSystemdService(port int, authToken string) error {
 	// Get executable path
 	execPath, err := os.Executable()
 	if err != nil {
@@ -184,6 +189,12 @@ func installAndStartSystemdService(port int) error {
 		user = "root"
 	}
 
+	// Build command with auth token if provided
+	cmd := fmt.Sprintf("%s backend start --port=%d", execPath, port)
+	if authToken != "" {
+		cmd += fmt.Sprintf(" --auth-token=%s", authToken)
+	}
+
 	// Create service file content
 	serviceContent := fmt.Sprintf(`[Unit]
 Description=SuperLandings CLI Daemon
@@ -193,7 +204,7 @@ After=network.target
 Type=simple
 User=%s
 WorkingDirectory=%s
-ExecStart=%s backend start --port=%d
+ExecStart=%s
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -201,7 +212,7 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
-`, user, workingDir, execPath, port)
+`, user, workingDir, cmd)
 
 	// Write service file
 	servicePath := "/etc/systemd/system/sl-cli.service"

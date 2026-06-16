@@ -38,10 +38,13 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/", s.handleLanding)
 	mux.HandleFunc("/health", s.handleHealth)
 	
-	// API routes
-	mux.HandleFunc("/api/status", s.handleAPIStatus)
-	mux.HandleFunc("/api/sites", s.handleAPISites)
-	mux.HandleFunc("/api/sites/", s.handleAPISite)
+	// API routes with authentication
+	apiMux := http.NewServeMux()
+	apiMux.HandleFunc("/status", s.authMiddleware(s.handleAPIStatus))
+	apiMux.HandleFunc("/sites", s.authMiddleware(s.handleAPISites))
+	apiMux.HandleFunc("/sites/", s.authMiddleware(s.handleAPISite))
+	
+	mux.Handle("/api/", http.StripPrefix("/api", apiMux))
 
 	// Start server
 	addr := fmt.Sprintf(":%d", port)
@@ -238,4 +241,36 @@ func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug 
 	// For now, return success
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"success":true,"message":"sync endpoint placeholder"}`))
+}
+
+// authMiddleware validates Bearer token authentication
+func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// If no auth token configured, allow all requests
+		if s.cfg.AuthToken == "" {
+			next(w, r)
+			return
+		}
+		
+		// Check for Authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "Unauthorized: missing Authorization header", http.StatusUnauthorized)
+			return
+		}
+		
+		// Check Bearer token format
+		if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
+			http.Error(w, "Unauthorized: invalid Authorization header format", http.StatusUnauthorized)
+			return
+		}
+		
+		token := authHeader[7:]
+		if token != s.cfg.AuthToken {
+			http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+			return
+		}
+		
+		next(w, r)
+	}
 }
