@@ -24,6 +24,7 @@ var siteSyncCmd = &cobra.Command{
 		host, _ := cmd.Flags().GetString("host")
 		user, _ := cmd.Flags().GetString("user")
 		port, _ := cmd.Flags().GetInt("port")
+		key, _ := cmd.Flags().GetString("key")
 
 		if host == "" {
 			fmt.Fprintf(os.Stderr, "Error: --host is required\n")
@@ -38,6 +39,7 @@ var siteSyncCmd = &cobra.Command{
 			Host: host,
 			User: user,
 			Port: port,
+			Key:  key,
 		}
 
 		if err := syncService.Sync(args[0], target); err != nil {
@@ -88,14 +90,87 @@ var siteProxyCmd = &cobra.Command{
 	},
 }
 
+// site import
+var siteImportCmd = &cobra.Command{
+	Use:   "import --input <file>",
+	Short: "Import site metadata from JSON",
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := initializeDB(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+
+		input, _ := cmd.Flags().GetString("input")
+		if input == "" {
+			fmt.Fprintf(os.Stderr, "Error: --input is required\n")
+			os.Exit(1)
+		}
+
+		content, err := os.ReadFile(input)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
+			os.Exit(1)
+		}
+
+		syncService := services.NewSyncService(cfg)
+		if err := syncService.Import(string(content)); err != nil {
+			fmt.Fprintf(os.Stderr, "Error importing: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Println("Site imported successfully")
+	},
+}
+
+// site export
+var siteExportCmd = &cobra.Command{
+	Use:   "export <site> --output <file>",
+	Short: "Export site metadata to JSON",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := initializeDB(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+
+		output, _ := cmd.Flags().GetString("output")
+		if output == "" {
+			output = "/tmp/site-export.json"
+		}
+
+		syncService := services.NewSyncService(cfg)
+		jsonData, err := syncService.Export(args[0])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error exporting: %v\n", err)
+			os.Exit(1)
+		}
+
+		if err := os.WriteFile(output, []byte(jsonData), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing file: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Site exported to %s\n", output)
+	},
+}
+
 func init() {
 	siteSyncCmd.Flags().String("host", "", "Remote host (e.g., 92.113.145.16)")
 	siteSyncCmd.Flags().String("user", "root", "SSH user")
 	siteSyncCmd.Flags().Int("port", 22, "SSH port")
+	siteSyncCmd.Flags().String("key", "", "SSH key path (e.g., ~/.ssh/id_rsa_srv)")
 
 	siteProxyCmd.Flags().String("domain", "", "Domain name (e.g., slv2.intrane.fr)")
 	siteProxyCmd.Flags().String("internal-url", "http://127.0.0.1:3099", "Internal URL to proxy to")
 
+	siteImportCmd.Flags().String("input", "", "Import file path")
+
+	siteExportCmd.Flags().String("output", "", "Output file path (default: /tmp/site-export.json)")
+
 	siteCmd.AddCommand(siteSyncCmd)
 	siteCmd.AddCommand(siteProxyCmd)
+	siteCmd.AddCommand(siteImportCmd)
+	siteCmd.AddCommand(siteExportCmd)
 }

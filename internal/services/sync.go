@@ -123,6 +123,7 @@ type SyncTarget struct {
 	Host string
 	User string
 	Port int
+	Key  string // SSH key path
 }
 
 // Sync syncs a site to a remote target
@@ -149,34 +150,49 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 	remotePath := fmt.Sprintf("%s@%s:%s/.superlandings/sites/%s",
 		target.User, target.Host, portFlag, siteSlug)
 
-	rsyncCmd := exec.Command("rsync", "-avz", sitePath+"/", remotePath+"/")
+	rsyncArgs := []string{"-avz"}
+	if target.Key != "" {
+		rsyncArgs = append(rsyncArgs, "-e", fmt.Sprintf("ssh -i %s -o IdentitiesOnly=yes", target.Key))
+	}
+	rsyncArgs = append(rsyncArgs, sitePath+"/", remotePath+"/")
+
+	rsyncCmd := exec.Command("rsync", rsyncArgs...)
 	if output, err := rsyncCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to rsync site files: %w, output: %s", err, string(output))
 	}
 
 	// Copy export file to remote
-	scpCmd := exec.Command("scp",
-		tempFile,
-		fmt.Sprintf("%s@%s:/tmp/site-import.json", target.User, target.Host),
-	)
+	scpArgs := []string{}
+	if target.Key != "" {
+		scpArgs = append(scpArgs, "-i", target.Key, "-o", "IdentitiesOnly=yes")
+	}
+	scpArgs = append(scpArgs, tempFile, fmt.Sprintf("%s@%s:/tmp/site-import.json", target.User, target.Host))
+
+	scpCmd := exec.Command("scp", scpArgs...)
 	if output, err := scpCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to copy export file: %w, output: %s", err, string(output))
 	}
 
 	// Import metadata on remote
-	sshCmd := exec.Command("ssh",
-		fmt.Sprintf("%s@%s", target.User, target.Host),
-		"sl-cli site import --input /tmp/site-import.json",
-	)
+	sshArgs := []string{}
+	if target.Key != "" {
+		sshArgs = append(sshArgs, "-i", target.Key, "-o", "IdentitiesOnly=yes")
+	}
+	sshArgs = append(sshArgs, fmt.Sprintf("%s@%s", target.User, target.Host), "sl-cli site import --input /tmp/site-import.json")
+
+	sshCmd := exec.Command("ssh", sshArgs...)
 	if output, err := sshCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to import on remote: %w, output: %s", err, string(output))
 	}
 
 	// Restart daemon on remote to pick up changes
-	restartCmd := exec.Command("ssh",
-		fmt.Sprintf("%s@%s", target.User, target.Host),
-		"sl-cli backend restart",
-	)
+	restartArgs := []string{}
+	if target.Key != "" {
+		restartArgs = append(restartArgs, "-i", target.Key, "-o", "IdentitiesOnly=yes")
+	}
+	restartArgs = append(restartArgs, fmt.Sprintf("%s@%s", target.User, target.Host), "pkill -f 'sl-cli backend' && sl-cli backend start --daemon --port 3100")
+
+	restartCmd := exec.Command("ssh", restartArgs...)
 	if output, err := restartCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to restart remote daemon: %w, output: %s", err, string(output))
 	}
@@ -198,7 +214,7 @@ func (s *SyncService) SetupProxy(setup ProxySetup) error {
 		"--id", setup.SiteSlug,
 		"--name", setup.SiteSlug,
 		"--domain", setup.Domain,
-		"--port", "3099",
+		"--port", "3100",
 		"--backend-url", setup.InternalURL,
 		"--cmd", "true", // placeholder
 	)
@@ -207,15 +223,16 @@ func (s *SyncService) SetupProxy(setup ProxySetup) error {
 		return fmt.Errorf("failed to setup hotify app: %w, output: %s", err, string(output))
 	}
 
-	// Setup Traefik
+	// Setup Traefik (optional, may fail without sudo)
 	traefikCmd := exec.Command("hotify-cli", "setup-traefik",
 		"--id", setup.SiteSlug,
 		"--challenge-type", "http",
 		"--local",
 	)
 
-	if output, err := traefikCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to setup Traefik: %w, output: %s", err, string(output))
+	if err := traefikCmd.Run(); err != nil {
+		// Traefik setup is optional, log warning but don't fail
+		fmt.Printf("Warning: Traefik setup failed (may require sudo): %v\n", err)
 	}
 
 	return nil
