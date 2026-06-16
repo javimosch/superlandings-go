@@ -328,19 +328,20 @@ sl-cli backend start --daemon --port <port> --auth-token <token> \
 
 5. **SSH-based sync is more reliable**: For now, use SSH-based sync (`--host --user --key`) instead of HTTP API sync (`--target`) until the JSON error response issue is resolved.
 
-6. **Daemon restart can fail**: The final daemon restart step in sync often fails (exit code 255), but this doesn't mean the sync failed - files and metadata are already in place.
+6. **Daemon restart removed from sync**: The sync service no longer restarts the daemon after syncing. This was unnecessary because the daemon reads files on each request. Sync now:
+   - Rsyncs site files to remote
+   - Copies and imports metadata
+   - Returns success immediately
+   - Changes are live without any restart
+   - No more exit 255 failures
 
 7. **Real-time sync without restart**: Files are served immediately after sync - daemon reads from disk on each request, no restart needed. **Confirmed test:**
 ```bash
-# For testing purposes (bypasses daemon restart step):
-scp file.html user@server:~/.superlandings/sites/slug/version/
-curl http://server:port/slug/  # Changes appear instantly
-
 # Production workflow (use sl-cli sync):
 sl-cli site sync <slug> --host <server> --user <user> --key <key>
-# Note: Daemon restart step may fail, but sync succeeds
+# Changes appear immediately, no restart needed
 ```
-**Result:** Changes appear instantly without daemon restart. The daemon restart step in sync is only needed for configuration changes, not content updates. Use `sl-cli site sync` for production; direct scp only for testing/quick fixes.
+**Result:** Changes appear instantly without daemon restart. The daemon restart step has been removed from sync service entirely.
 
 8. **Dynamic blocks ARE implemented**: The `{{>include "path"}}` syntax works. Implemented in `internal/services/site.go` (lines 277-301) with:
    - Regex pattern matching for `{{>include "path"}}`

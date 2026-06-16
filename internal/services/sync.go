@@ -191,20 +191,8 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 		return fmt.Errorf("failed to import on remote: %w, output: %s", err, string(output))
 	}
 
-	// Restart daemon on remote to pick up changes
-	restartArgs := []string{}
-	if target.Key != "" {
-		restartArgs = append(restartArgs, "-i", target.Key, "-o", "IdentitiesOnly=yes")
-	}
-	if target.Port != 22 {
-		restartArgs = append(restartArgs, "-p", fmt.Sprintf("%d", target.Port))
-	}
-	restartArgs = append(restartArgs, fmt.Sprintf("%s@%s", target.User, target.Host), "pkill -f 'sl-cli backend' && sl-cli backend start --daemon --port 3100")
-
-	restartCmd := exec.Command("ssh", restartArgs...)
-	if output, err := restartCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to restart remote daemon: %w, output: %s", err, string(output))
-	}
+	// Note: Daemon restart is not needed - daemon reads files on each request
+	// Changes are live immediately after import completes
 
 	return nil
 }
