@@ -206,40 +206,56 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 <html>
 <head>
 	<title>Editor - ` + site.Name + `</title>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">
+	<script src="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js"></script>
 	<style>
 		* { box-sizing: border-box; }
-		body { font-family: system-ui, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
-		header { background: #007bff; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-		h1 { margin: 0; font-size: 1.5rem; }
-		.logout { background: rgba(255,255,255,0.2); color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+		body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; background: #f8fafc; }
+		header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+		h1 { margin: 0; font-size: 1.5rem; font-weight: 700; }
+		.logout { background: rgba(255,255,255,0.2); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 500; transition: background 0.2s; }
 		.logout:hover { background: rgba(255,255,255,0.3); }
 		main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
-		.card { background: white; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-		h2 { margin-top: 0; color: #333; }
-		.file-list { list-style: none; padding: 0; }
-		.file-list li { padding: 0.75rem; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
-		.file-list li:hover { background: #f9f9f9; }
+		.card { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; }
+		h2 { margin-top: 0; color: #1f2937; font-weight: 600; font-size: 1.25rem; }
+		.file-list { list-style: none; padding: 0; margin: 0; }
+		.file-list li { padding: 1rem; border-bottom: 1px solid #f3f4f6; cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-radius: 8px; transition: all 0.2s; margin-bottom: 0.5rem; }
+		.file-list li:hover { background: #f9fafb; transform: translateX(4px); }
 		.file-list li:last-child { border-bottom: none; }
-		.btn { background: #007bff; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
-		.btn:hover { background: #0056b3; }
-		.btn-secondary { background: #6c757d; }
-		.btn-secondary:hover { background: #545b62; }
-		.btn-success { background: #28a745; }
-		.btn-success:hover { background: #218838; }
-		.editor-container { display: none; margin-top: 1rem; }
+		.file-item { display: flex; align-items: center; gap: 0.75rem; flex: 1; }
+		.file-icon { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+		.file-icon.html { background: #e0f2fe; color: #0284c7; }
+		.file-icon.md { background: #fef3c7; color: #d97706; }
+		.file-icon.json { background: #dcfce7; color: #16a34a; }
+		.file-name { font-weight: 500; color: #374151; }
+		.file-path { font-size: 0.875rem; color: #6b7280; }
+		.btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+		.btn:hover { opacity: 0.9; transform: translateY(-1px); }
+		.btn-secondary { background: #6b7280; }
+		.btn-secondary:hover { background: #4b5563; }
+		.btn-success { background: #10b981; }
+		.btn-success:hover { background: #059669; }
+		.editor-container { display: none; margin-top: 1.5rem; }
 		.editor-container.active { display: block; }
-		textarea { width: 100%; min-height: 400px; font-family: monospace; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; }
-		.editor-actions { margin-top: 1rem; display: flex; gap: 0.5rem; }
-		.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+		textarea { width: 100%; min-height: 400px; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; padding: 1rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; line-height: 1.6; }
+		.editor-actions { margin-top: 1rem; display: flex; gap: 0.75rem; }
+		.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
 		.modal.active { display: flex; justify-content: center; align-items: center; }
-		.modal-content { background: white; padding: 2rem; border-radius: 8px; width: 100%; max-width: 500px; }
-		.modal-content input { width: 100%; padding: 0.5rem; margin: 0.5rem 0; border: 1px solid #ddd; border-radius: 4px; }
-		.modal-actions { margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end; }
-		.tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-		.tab { background: #e9ecef; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
-		.tab.active { background: #007bff; color: white; }
+		.modal-content { background: white; padding: 2rem; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 20px 25px rgba(0,0,0,0.1); }
+		.modal-content input { width: 100%; padding: 0.75rem; margin: 0.75rem 0; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+		.modal-content input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
+		.modal-actions { margin-top: 1rem; display: flex; gap: 0.75rem; justify-content: flex-end; }
+		.tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: white; padding: 0.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+		.tab { background: transparent; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 500; color: #6b7280; transition: all 0.2s; }
+		.tab:hover { background: #f3f4f6; }
+		.tab.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
 		.tab-content { display: none; }
 		.tab-content.active { display: block; }
+		.EasyMDEContainer { border: 1px solid #d1d5db; border-radius: 8px; }
+		.editor-wrapper { display: none; }
+		.editor-wrapper.active { display: block; }
+		.markdown-editor { display: none; }
+		.markdown-editor.active { display: block; }
 	</style>
 </head>
 <body>
@@ -280,7 +296,12 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 
 		<div class="card editor-container" id="editor">
 			<h2 id="editor-title">Edit File</h2>
-			<textarea id="editor-content"></textarea>
+			<div id="plain-editor" class="editor-wrapper active">
+				<textarea id="editor-content"></textarea>
+			</div>
+			<div id="markdown-editor" class="markdown-editor">
+				<textarea id="markdown-content"></textarea>
+			</div>
 			<div class="editor-actions">
 				<button class="btn" onclick="saveFile()">Save</button>
 				<button class="btn btn-secondary" onclick="closeEditor()">Cancel</button>
@@ -303,6 +324,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 		let currentFile = null;
 		let currentPath = '';
 		let isMarkdown = false;
+		let easyMDE = null;
 
 		function showTab(tab) {
 			document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -310,6 +332,12 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 			event.target.classList.add('active');
 			document.getElementById(tab + '-tab').classList.add('active');
 			loadFiles(tab);
+		}
+
+		function getFileIcon(name, isMarkdown) {
+			if (name.endsWith('.md')) return '<div class="file-icon md">📝</div>';
+			if (name.endsWith('.json')) return '<div class="file-icon json">{ }</div>';
+			return '<div class="file-icon html">🌐</div>';
 		}
 
 		function loadFiles(type) {
@@ -322,7 +350,8 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 					list.innerHTML = '';
 					data.files.forEach(f => {
 						const li = document.createElement('li');
-						li.innerHTML = '<span>' + f.name + '</span><button class="btn" onclick="editFile(\'' + f.path + '\', ' + (f.is_markdown || false) + ')">Edit</button>';
+						li.onclick = () => editFile(f.path, f.is_markdown || false);
+						li.innerHTML = '<div class="file-item">' + getFileIcon(f.name, f.is_markdown) + '<div><div class="file-name">' + f.name + '</div><div class="file-path">' + f.path + '</div></div></div>';
 						list.appendChild(li);
 					});
 				});
@@ -335,20 +364,50 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 				.then(r => r.json())
 				.then(data => {
 					document.getElementById('editor-title').textContent = 'Edit: ' + path;
-					document.getElementById('editor-content').value = data.content;
 					document.getElementById('editor').classList.add('active');
+					
+					if (isMd) {
+						document.getElementById('plain-editor').classList.remove('active');
+						document.getElementById('markdown-editor').classList.add('active');
+						document.getElementById('markdown-content').value = data.content;
+						
+						if (easyMDE) {
+							easyMDE.value(data.content);
+						} else {
+							easyMDE = new EasyMDE({
+								element: document.getElementById('markdown-content'),
+								spellChecker: false,
+								autofocus: true,
+								placeholder: 'Write your markdown here...',
+								status: false,
+								toolbar: ['bold', 'italic', 'heading', '|', 'quote', 'unordered-list', 'ordered-list', '|', 'link', 'image', '|', 'preview', 'side-by-side', 'fullscreen']
+							});
+						}
+					} else {
+						document.getElementById('markdown-editor').classList.remove('active');
+						document.getElementById('plain-editor').classList.add('active');
+						document.getElementById('editor-content').value = data.content;
+					}
 				});
 		}
 
 		function saveFile() {
-			const content = document.getElementById('editor-content').value;
+			let content;
+			if (isMarkdown && easyMDE) {
+				content = easyMDE.value();
+			} else if (isMarkdown) {
+				content = document.getElementById('markdown-content').value;
+			} else {
+				content = document.getElementById('editor-content').value;
+			}
+			
 			fetch('/api/sites/` + site.Slug + `/write', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ file: currentFile, content: content })
 			}).then(r => r.json()).then(data => {
 				if (data.success) {
-					alert('Saved!');
+					alert('Saved successfully!');
 					closeEditor();
 					loadFiles('files');
 					loadFiles('pages');
@@ -359,7 +418,10 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 
 		function closeEditor() {
 			document.getElementById('editor').classList.remove('active');
+			document.getElementById('plain-editor').classList.remove('active');
+			document.getElementById('markdown-editor').classList.remove('active');
 			currentFile = null;
+			isMarkdown = false;
 		}
 
 		function showCreateFileModal(path, isMd = false) {
