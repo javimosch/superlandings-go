@@ -3,16 +3,17 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 func handleRemoteBackendStatus(target string) {
 	// Parse target as host:port
-	var host string
-	var port int
-	fmt.Sscanf(target, "%s:%d", &host, &port)
+	parts := strings.Split(target, ":")
+	host := parts[0]
+	port := 3100 // default sl-cli daemon port
 	
-	if port == 0 {
-		port = 3100 // default sl-cli daemon port
+	if len(parts) > 1 {
+		fmt.Sscanf(parts[1], "%d", &port)
 	}
 	
 	client := NewRemoteClient(host, port)
