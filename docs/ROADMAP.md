@@ -36,6 +36,8 @@ curl http://localhost:3099/my-site/
 
 **Goal:** Solidify the foundation for production use.
 
+**Estimated Time:** 1-2 weeks
+
 ### 1.1 Traefik Integration
 **Priority:** High
 **Effort:** 2-3 days
@@ -86,22 +88,7 @@ sl-cli site domain remove my-site --domain mysite.com
 - CLI commands for domain management
 - Validation and conflict detection
 
-### 1.4 EJS Rendering
-**Priority:** Medium
-**Effort:** 2-3 days
 
-Server-side template rendering with EJS:
-```bash
-# EJS templates supported
-sl-cli site write my-site v1 "index.html" --content '<h1><%= title %></h1>'
-sl-cli site write my-site v1 "index.html.data.json" --content '{"title":"My Site"}'
-```
-
-**Deliverables:**
-- EJS template engine integration
-- Data file support (`.html.data.json`)
-- Template rendering at serve time
-- Caching for performance
 
 ---
 
@@ -447,7 +434,7 @@ Core plugins:
 
 **Total to v2.0.0:** ~8-12 weeks
 
-**Note:** This is a rough estimate. Actual timeline depends on priorities, testing, and feedback.
+**Note:** Phase 1 previously included EJS rendering (removed - Node.js only, not suitable for Go). The roadmap now focuses on Go-native solutions. This is a rough estimate; actual timeline depends on priorities, testing, and feedback.
 
 ---
 
