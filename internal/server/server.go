@@ -27,11 +27,11 @@ func NewServer(cfg *config.Config) *Server {
 
 // Start starts the HTTP server
 func (s *Server) Start(port int) error {
-	// Initialize database
+	// Initialize database once and keep it open
 	if err := db.Initialize(s.cfg.DatabasePath); err != nil {
 		return fmt.Errorf("failed to initialize database: %w", err)
 	}
-	// Note: Don't close database here - it needs to stay open for server lifetime
+	// Note: Database stays open for server lifetime
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -236,20 +236,9 @@ func (s *Server) handleAPISiteDetails(w http.ResponseWriter, r *http.Request, sl
 }
 
 func (s *Server) handleAPISiteVersions(w http.ResponseWriter, r *http.Request, slug string) {
-	// Check if site exists first
-	site, err := s.siteService.GetBySlug(slug)
-	if err != nil {
-		http.Error(w, "Site not found", http.StatusNotFound)
-		return
-	}
-	if site == nil {
-		http.Error(w, "Site not found", http.StatusNotFound)
-		return
-	}
-
 	versions, err := s.siteService.ListVersions(slug)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Site not found", http.StatusNotFound)
 		return
 	}
 	

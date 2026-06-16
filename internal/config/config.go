@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 )
@@ -33,7 +34,9 @@ func Load() (*Config, error) {
 	landingsDir := filepath.Join(superlandingsDir, "landings")
 	sitesDir := filepath.Join(superlandingsDir, "sites")
 
-	return &Config{
+	// Try to load config file
+	configFile := filepath.Join(superlandingsDir, "config.json")
+	cfg := &Config{
 		DatabasePath: filepath.Join(superlandingsDir, "db.sql"),
 		DataDir:      dataDir,
 		LandingsDir:  landingsDir,
@@ -42,7 +45,38 @@ func Load() (*Config, error) {
 		LogFile:      filepath.Join(superlandingsDir, "sl-cli.log"),
 		UIDir:        os.Getenv("SUPERLANDINGS_UI_DIR"),
 		ServerPort:   8080,
-	}, nil
+	}
+
+	if data, err := os.ReadFile(configFile); err == nil {
+		if err := json.Unmarshal(data, cfg); err == nil {
+			// Config loaded successfully
+			// Fill in defaults for missing fields
+			if cfg.DatabasePath == "" {
+				cfg.DatabasePath = filepath.Join(superlandingsDir, "db.sql")
+			}
+			if cfg.DataDir == "" {
+				cfg.DataDir = dataDir
+			}
+			if cfg.LandingsDir == "" {
+				cfg.LandingsDir = landingsDir
+			}
+			if cfg.SitesDir == "" {
+				cfg.SitesDir = sitesDir
+			}
+			if cfg.PIDFile == "" {
+				cfg.PIDFile = filepath.Join(superlandingsDir, "sl-cli.pid")
+			}
+			if cfg.LogFile == "" {
+				cfg.LogFile = filepath.Join(superlandingsDir, "sl-cli.log")
+			}
+			if cfg.ServerPort == 0 {
+				cfg.ServerPort = 8080
+			}
+		}
+		// If config file exists but can't be parsed, use defaults
+	}
+
+	return cfg, nil
 }
 
 func (c *Config) EnsureDirectories() error {
