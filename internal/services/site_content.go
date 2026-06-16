@@ -105,6 +105,13 @@ func (s *SiteService) processContent(content, filePath, versionDir, siteSlug, si
 				data["nav_pages"] = pages
 			}
 		}
+		// Auto-discover blog posts
+		if _, ok := data["blog_posts"]; !ok {
+			posts, err := s.DiscoverBlogPosts(siteSlug)
+			if err == nil {
+				data["blog_posts"] = posts
+			}
+		}
 	}
 
 	// Add root path variable
@@ -294,4 +301,58 @@ func (s *SiteService) DiscoverPages(siteSlug string) ([]map[string]interface{}, 
 	}
 
 	return pages, nil
+}
+
+// DiscoverBlogPosts discovers all blog posts in the blog/ directory
+func (s *SiteService) DiscoverBlogPosts(siteSlug string) ([]map[string]interface{}, error) {
+	site, err := s.siteRepo.GetBySlug(siteSlug)
+	if err != nil {
+		return nil, fmt.Errorf("site not found: %w", err)
+	}
+
+	// Get active version
+	version, err := s.versionRepo.GetActiveVersion(site.ID)
+	if err != nil {
+		return nil, fmt.Errorf("no active version: %w", err)
+	}
+
+	// Check if blog/ directory exists
+	blogDir := filepath.Join(s.cfg.SitesDir, site.Slug, version.Version, "blog")
+	if _, err := os.Stat(blogDir); os.IsNotExist(err) {
+		return []map[string]interface{}{}, nil
+	}
+
+	// Read all .md files in blog/
+	entries, err := os.ReadDir(blogDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read blog directory: %w", err)
+	}
+
+	var posts []map[string]interface{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		// Extract slug (filename without .md)
+		slug := strings.TrimSuffix(entry.Name(), ".md")
+
+		// Try to load metadata from .data.json file
+		dataFile := filepath.Join(blogDir, entry.Name()+".data.json")
+		metadata := make(map[string]interface{})
+		if data, err := os.ReadFile(dataFile); err == nil {
+			json.Unmarshal(data, &metadata)
+		}
+
+		// Set default title from slug if not in metadata
+		if _, ok := metadata["title"]; !ok {
+			metadata["title"] = strings.ReplaceAll(slug, "-", " ")
+			metadata["title"] = strings.ToUpper(string(metadata["title"].(string))[0:1]) + metadata["title"].(string)[1:]
+		}
+
+		metadata["slug"] = slug
+		posts = append(posts, metadata)
+	}
+
+	return posts, nil
 }
