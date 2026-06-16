@@ -14,7 +14,7 @@ SuperLandings Go includes SSH-based site synchronization and proxy configuration
 ### Export Site Metadata
 
 ```bash
-sl-cli site export <site> --output /tmp/export.json
+sl-cli site export <SITE_SLUG> --output /tmp/export.json
 ```
 
 Exports site metadata (sites, versions, files) to JSON for migration or backup.
@@ -30,7 +30,7 @@ Imports site metadata from JSON file. Creates site and versions if they don't ex
 ### Sync to Remote Server
 
 ```bash
-sl-cli site sync <site> --host <host> --user <user> [--port 22] [--key <ssh-key-path>]
+sl-cli site sync <SITE_SLUG> --host <SERVER_IP> --user <USER> [--port <SSH_PORT>] [--key <SSH_KEY_PATH>]
 ```
 
 Synchronizes a site to a remote server:
@@ -42,7 +42,7 @@ Synchronizes a site to a remote server:
 
 **Example:**
 ```bash
-sl-cli site sync slv2 --host 92.113.145.16 --user root --key ~/.ssh/id_rsa_srv
+sl-cli site sync mysite --host <SERVER_IP> --user root --key ~/.ssh/id_rsa_srv
 ```
 
 ## Proxy Commands
@@ -50,7 +50,7 @@ sl-cli site sync slv2 --host 92.113.145.16 --user root --key ~/.ssh/id_rsa_srv
 ### Setup Hotify Proxy
 
 ```bash
-sl-cli site proxy <site> --domain <domain> --internal-url <url>
+sl-cli site proxy <SITE_SLUG> --domain <DOMAIN> --internal-url <URL>
 ```
 
 Configures hotify-cli reverse proxy for a site:
@@ -59,7 +59,7 @@ Configures hotify-cli reverse proxy for a site:
 
 **Example:**
 ```bash
-sl-cli site proxy slv2 --domain slv2.intrane.fr --internal-url http://127.0.0.1:3100
+sl-cli site proxy mysite --domain example.com --internal-url http://127.0.0.1:<PORT>
 ```
 
 **Limitation:** Currently requires manual Traefik configuration for path prefix middleware. See hotify-integration skill.
@@ -128,16 +128,16 @@ When automated sync fails:
 
 ```bash
 # 1. Create site directory on remote
-ssh -o IdentitiesOnly=yes -i ~/.ssh/id_rsa_srv dk2 "mkdir -p /home/dk2/.superlandings/sites/slv2/v1"
+ssh -i <SSH_KEY> <USER>@<SERVER_IP> "mkdir -p /home/<USER>/.superlandings/sites/<SITE_SLUG>/<VERSION>"
 
 # 2. Copy site files
-scp -o IdentitiesOnly=yes -i ~/.ssh/id_rsa_srv -r ~/.superlandings/sites/slv2/* dk2:/home/dk2/.superlandings/sites/slv2/
+scp -i <SSH_KEY> -r ~/.superlandings/sites/<SITE_SLUG>/* <USER>@<SERVER_IP>:/home/<USER>/.superlandings/sites/<SITE_SLUG>/
 
 # 3. Create version on remote
-ssh -o IdentitiesOnly=yes -i ~/.ssh/id_rsa_srv dk2 "sl-cli site version create slv2 --version v1 --comment 'Synced from local'"
+ssh -i <SSH_KEY> <USER>@<SERVER_IP> "sl-cli site version create <SITE_SLUG> --version <VERSION> --comment 'Synced from local'"
 
 # 4. Restart daemon
-ssh -o IdentitiesOnly=yes -i ~/.ssh/id_rsa_srv dk2 "pkill -f 'sl-cli backend' && sl-cli backend start --daemon --port 3100"
+ssh -i <SSH_KEY> <USER>@<SERVER_IP> "pkill -f 'sl-cli backend' && sl-cli backend start --daemon --port <PORT>"
 ```
 
 ## File Structure
@@ -162,5 +162,5 @@ All files kept under 400 LOC per AGENTS.md rules:
 ## References
 
 - hotify-integration skill for hotify-cli details
-- dk2-deployment skill for full deployment workflow
+- remote-deployment skill for full deployment workflow
 - AGENTS.md for coding guidelines

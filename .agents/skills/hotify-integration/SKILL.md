@@ -25,7 +25,7 @@ When using `--backend-url`:
 ### 1. Register App with hotify-cli
 
 ```bash
-hotify-cli setup --id slv2 --name slv2 --domain slv2.intrane.fr --port 3100 --backend-url http://127.0.0.1:3100 --cmd 'sleep infinity'
+hotify-cli setup --id <APP_ID> --name <APP_NAME> --domain <DOMAIN> --port <PORT> --backend-url http://127.0.0.1:<PORT> --cmd 'sleep infinity'
 ```
 
 **Why `sleep infinity`?**
@@ -36,14 +36,14 @@ hotify-cli setup --id slv2 --name slv2 --domain slv2.intrane.fr --port 3100 --ba
 ### 2. Configure DNS
 
 ```bash
-hotify-cli setup-dns --id slv2 --ip 92.113.145.16 --local
+hotify-cli setup-dns --id <APP_ID> --ip <SERVER_IP> --local
 ```
 
 ### 3. Fix Traefik Config Ownership (if needed)
 
 ```bash
-# On dk2, Traefik config must be owned by dk2 user
-sudo chown dk2:dk2 /etc/traefik/dynamic.yml /etc/traefik/traefik.yml
+# Traefik config must be owned by the user running hotify-cli
+sudo chown <USER>:<USER> /etc/traefik/dynamic.yml /etc/traefik/traefik.yml
 ```
 
 ### 4. Manual Traefik Configuration
@@ -52,29 +52,29 @@ sudo chown dk2:dk2 /etc/traefik/dynamic.yml /etc/traefik/traefik.yml
 sudo tee /etc/traefik/dynamic.yml > /dev/null << 'EOF'
 http:
   routers:
-    slv2:
-      rule: "Host(\`slv2.intrane.fr\`)"
-      service: slv2
+    <APP_ID>:
+      rule: "Host(\`<DOMAIN>\`)"
+      service: <APP_ID>
       entryPoints:
         - web
       middlewares:
-        - slv2-addprefix
+        - <APP_ID>-addprefix
   services:
-    slv2:
+    <APP_ID>:
       loadBalancer:
         servers:
-          - url: "http://127.0.0.1:3100"
+          - url: "http://127.0.0.1:<PORT>"
   middlewares:
-    slv2-addprefix:
+    <APP_ID>-addprefix:
       addPrefix:
-        prefix: "/slv2"
+        prefix: "/<SITE_SLUG>"
 EOF
 ```
 
 **Why path prefix middleware?**
-- sl-cli serves sites at paths like `/slv2/`, `/template-demo/`
-- Domain root (`slv2.intrane.fr`) needs to be routed to `/slv2/`
-- Traefik addPrefix middleware adds `/slv2` to the request path
+- sl-cli serves sites at paths like `/<SITE_SLUG>/`, `/other-site/`
+- Domain root needs to be routed to `/<SITE_SLUG>/`
+- Traefik addPrefix middleware adds the site slug to the request path
 
 ### 5. Restart Traefik
 
@@ -86,11 +86,11 @@ sudo systemctl restart traefik
 
 hotify-cli sometimes duplicates the domain suffix:
 
-**Problem:** `slv2.intrane.fr.intrane.fr`
+**Problem:** `example.com.example.com`
 
 **Fix:**
 ```bash
-sed -i 's|slv2.intrane.fr.intrane.fr|slv2.intrane.fr|g' ~/.hotify/config.json
+sed -i 's|example.com.example.com|example.com|g' ~/.hotify/config.json
 ```
 
 ## GitHub Issue
@@ -103,12 +103,12 @@ SuperLandings Go includes CLI commands that wrap hotify-cli:
 
 ```bash
 # DNS setup
-sl-cli site dns setup slv2 --domain slv2.intrane.fr
-sl-cli site dns list slv2
-sl-cli site dns remove slv2
+sl-cli site dns setup <SITE_SLUG> --domain <DOMAIN>
+sl-cli site dns list <SITE_SLUG>
+sl-cli site dns remove <SITE_SLUG>
 
 # Proxy setup (currently requires manual Traefik config)
-sl-cli site proxy slv2 --domain slv2.intrane.fr --internal-url http://127.0.0.1:3100
+sl-cli site proxy <SITE_SLUG> --domain <DOMAIN> --internal-url http://127.0.0.1:<PORT>
 ```
 
 ## Known Issues
@@ -121,5 +121,5 @@ sl-cli site proxy slv2 --domain slv2.intrane.fr --internal-url http://127.0.0.1:
 ## References
 
 - hotify-setup skill for general hotify-cli usage
-- jar-dk2-manage skill for dk2-specific Traefik configuration
+- dk2-deployment skill for server-specific deployment details
 - GitHub issue: https://github.com/javimosch/hotify-cli/issues/1

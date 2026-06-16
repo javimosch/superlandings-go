@@ -145,6 +145,32 @@ Max 300 LOC, focused:
 - Caveats/gotchas
 - File locations
 
+### ⚠️ CRITICAL: Keep Skills Generic
+
+**Local skills MUST be generic and reusable.**
+
+**DO NOT include:**
+- Specific IP addresses (e.g., 92.113.145.16)
+- Specific machine names (e.g., dk2, vps1)
+- Specific domain names (e.g., slv2.intrane.fr)
+- Specific port numbers from deployments (e.g., port 3100)
+- Specific deployment instances or configurations
+- Network-specific details (e.g., Tailscale IPs, VPN configs)
+
+**DO include:**
+- Generic patterns and workflows
+- Placeholder variables (e.g., `<SERVER_IP>`, `<DOMAIN>`, `<PORT>`)
+- Reusable configuration templates
+- Architectural patterns
+- Troubleshooting methodologies
+- Integration approaches
+
+**Example:**
+❌ Bad: "Deploy to dk2 at 92.113.145.16 using port 3100"
+✅ Good: "Deploy to remote server using SSH: `scp sl-cli user@<SERVER_IP>:/tmp/`"
+
+**Rationale:** Skills should be reusable across different environments, machines, and deployments. Specific details belong in deployment scripts or environment-specific documentation, not in reusable skills.
+
 ### Example
 ```markdown
 # SuperLandings Go Build Skill
