@@ -26,4 +26,5 @@ func init() {
 	rootCmd.AddCommand(userCmd)
 	rootCmd.AddCommand(systemdCmd)
 	rootCmd.AddCommand(siteCmd)
+	rootCmd.AddCommand(targetsCmd)
 }

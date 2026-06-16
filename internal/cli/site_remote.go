@@ -3,20 +3,15 @@ package cli
 import (
 	"fmt"
 	"os"
-	"strings"
 )
 
 func handleRemoteSiteList(target string) {
-	// Parse target as host:port
-	parts := strings.Split(target, ":")
-	host := parts[0]
-	port := 3100 // default sl-cli daemon port
-	
-	if len(parts) > 1 {
-		fmt.Sscanf(parts[1], "%d", &port)
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error connecting to target: %v\n", err)
+		os.Exit(1)
 	}
 	
-	client := NewRemoteClient(host, port)
 	result, err := client.ListSites()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error listing remote sites: %v\n", err)

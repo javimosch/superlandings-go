@@ -6,16 +6,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/javimosch/superlandings-go/internal/config"
 )
 
 // RemoteClient handles HTTP requests to remote sl-cli daemon
 type RemoteClient struct {
 	baseURL    string
 	httpClient *http.Client
+	authToken  string
 }
 
-// NewRemoteClient creates a new remote client
+// NewRemoteClient creates a new remote client from host:port
 func NewRemoteClient(host string, port int) *RemoteClient {
 	return &RemoteClient{
 		baseURL: fmt.Sprintf("http://%s:%d", host, port),
@@ -25,9 +29,32 @@ func NewRemoteClient(host string, port int) *RemoteClient {
 	}
 }
 
-// GetStatus checks if remote daemon is running
+// NewRemoteClientFromTarget creates a new remote client from a target name
+func NewRemoteClientFromTarget(targetName string) (*RemoteClient, error) {
+	// Check if target looks like host:port
+	if strings.Contains(targetName, ":") {
+		parts := strings.Split(targetName, ":")
+		host := parts[0]
+		port := 3100
+		if len(parts) > 1 {
+			fmt.Sscanf(parts[1], "%d", &port)
+		}
+		return NewRemoteClient(host, port), nil
+	}
+	
+	// Load target from config
+	target, err := config.GetTarget(targetName)
+	if err != nil {
+		return nil, fmt.Errorf("target '%s' not found: %w", targetName, err)
+	}
+	
+	client := NewRemoteClient(target.Host, target.Port)
+	client.authToken = target.AuthToken
+	return client, nil
+}
+
 func (c *RemoteClient) GetStatus() (map[string]interface{}, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/status")
+	resp, err := c.makeRequest("GET", "/api/status", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -36,9 +63,8 @@ func (c *RemoteClient) GetStatus() (map[string]interface{}, error) {
 	return c.parseResponse(resp)
 }
 
-// ListSites lists all sites on remote daemon
 func (c *RemoteClient) ListSites() (map[string]interface{}, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/sites")
+	resp, err := c.makeRequest("GET", "/api/sites", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -47,9 +73,8 @@ func (c *RemoteClient) ListSites() (map[string]interface{}, error) {
 	return c.parseResponse(resp)
 }
 
-// GetSite gets site details from remote daemon
 func (c *RemoteClient) GetSite(slug string) (map[string]interface{}, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/sites/" + slug)
+	resp, err := c.makeRequest("GET", "/api/sites/"+slug, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -58,9 +83,8 @@ func (c *RemoteClient) GetSite(slug string) (map[string]interface{}, error) {
 	return c.parseResponse(resp)
 }
 
-// ListVersions lists versions for a site
 func (c *RemoteClient) ListVersions(slug string) (map[string]interface{}, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/api/sites/" + slug + "/versions")
+	resp, err := c.makeRequest("GET", "/api/sites/"+slug+"/versions", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -69,9 +93,32 @@ func (c *RemoteClient) ListVersions(slug string) (map[string]interface{}, error)
 	return c.parseResponse(resp)
 }
 
-// SyncSite triggers sync operation on remote daemon
 func (c *RemoteClient) SyncSite(slug string, payload map[string]interface{}) (map[string]interface{}, error) {
 	return c.postJSON("/api/sites/"+slug+"/sync", payload)
+}
+
+func (c *RemoteClient) makeRequest(method, path string, body []byte) (*http.Response, error) {
+	url := c.baseURL + path
+	
+	var req *http.Request
+	var err error
+	
+	if body != nil {
+		req, err = http.NewRequest(method, url, bytes.NewReader(body))
+	} else {
+		req, err = http.NewRequest(method, url, nil)
+	}
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	// Add auth token if configured
+	if c.authToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.authToken)
+	}
+	
+	return c.httpClient.Do(req)
 }
 
 func (c *RemoteClient) parseResponse(resp *http.Response) (map[string]interface{}, error) {
@@ -102,7 +149,7 @@ func (c *RemoteClient) postJSON(path string, payload map[string]interface{}) (ma
 		return nil, err
 	}
 	
-	resp, err := c.httpClient.Post(c.baseURL+path, "application/json", bytes.NewReader(jsonData))
+	resp, err := c.makeRequest("POST", path, jsonData)
 	if err != nil {
 		return nil, err
 	}
