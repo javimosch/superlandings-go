@@ -80,7 +80,7 @@ func (s *SiteService) processContent(content, filePath, versionDir, siteSlug, si
 		if err := md.Convert([]byte(content), &buf); err != nil {
 			return "", fmt.Errorf("failed to convert markdown: %w", err)
 		}
-		content = buf.String()
+		content = "<div class=\"markdown-content max-w-3xl mx-auto\">" + buf.String() + "</div>"
 	}
 
 	// Process layout directive first
