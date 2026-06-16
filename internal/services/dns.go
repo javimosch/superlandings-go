@@ -25,7 +25,7 @@ func NewDNSService(cfg *config.Config) *DNSService {
 func (s *DNSService) SetupDNS(siteID, siteSlug, domain, ip string, traefik bool) error {
 	// Check if hotify-cli is available
 	if _, err := exec.LookPath("hotify-cli"); err != nil {
-		return fmt.Errorf("hotify-cli not found: %w", err)
+		return fmt.Errorf("hotify-cli not found: %w. Install hotify-cli or configure manually", err)
 	}
 
 	// Create app in hotify-cli config with full domain (no base domain appending)
@@ -70,7 +70,9 @@ func (s *DNSService) SetupDNS(siteID, siteSlug, domain, ip string, traefik bool)
 		)
 
 		if output, err := traefikCmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("failed to setup Traefik: %w, output: %s", err, string(output))
+			// Traefik setup is optional - don't fail the whole operation
+			fmt.Printf("Warning: Failed to setup Traefik: %v, output: %s\n", err, string(output))
+			fmt.Printf("DNS is configured but SSL certificates may need manual setup\n")
 		}
 	}
 
@@ -93,7 +95,7 @@ func (s *DNSService) SetupDNS(siteID, siteSlug, domain, ip string, traefik bool)
 func (s *DNSService) RemoveDNS(siteSlug string) error {
 	// Check if hotify-cli is available
 	if _, err := exec.LookPath("hotify-cli"); err != nil {
-		return fmt.Errorf("hotify-cli not found: %w", err)
+		return fmt.Errorf("hotify-cli not found: %w. Remove DNS configuration manually", err)
 	}
 
 	// Prune DNS/Traefik
@@ -103,7 +105,8 @@ func (s *DNSService) RemoveDNS(siteSlug string) error {
 	)
 
 	if output, err := pruneCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to prune DNS/Traefik: %w, output: %s", err, string(output))
+		// Non-fatal, might not exist
+		fmt.Printf("Warning: failed to prune DNS/Traefik: %v, output: %s\n", err, string(output))
 	}
 
 	// Remove app from hotify-cli

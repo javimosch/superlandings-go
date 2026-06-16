@@ -354,6 +354,22 @@ sl-cli site sync <slug> --host <server> --user <user> --key <key>
 # Daemon processes includes on each request
 ```
 
+9. **Sync is now robust with auto-creation**: The sync service now handles:
+   - Auto-creation of sites on remote if they don't exist
+   - Auto-creation of versions on remote if they don't exist
+   - Syncing the active version (or first version if none active)
+   - No manual scp needed for initial deployment
+   - Non-blocking warnings if ensure steps fail
+
+10. **Cloudflare token sync required for SSL**: Local hotify has CF token, remote servers may not. Copy `~/.hotify/config.json` from local to remote server before running Traefik setup. Without CF token, Traefik setup fails with certificate generation errors.
+
+11. **Domain duplication in hotify**: Hotify may append base domain to domains (e.g., `intrane.intrane.fr.intrane.fr`). Workaround:
+    - Use subdomain only in setup (e.g., `intrane` instead of `intrane.intrane.fr`)
+    - Or manually fix config with sed if duplication occurs
+    - DNS service has sed fix but targets wrong config path
+
+12. **DNS via sl-cli is possible**: `sl-cli site dns setup` command exists and integrates with hotify-cli, but must be run on the server where hotify/Traefik are installed. However, it's often better to use local hotify for DNS (has CF token) and remote hotify for Traefik (after token sync).
+
 ### Deployment Best Practices
 
 1. **Use sl-cli sync for deployment**: The sync command is now robust and handles:
