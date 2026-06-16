@@ -36,13 +36,16 @@ func (s *Server) Start(port int) error {
 
 	// Setup routes
 	mux := http.NewServeMux()
-	
+
+	// Admin routes must be registered before the catch-all / handler
+	mux.HandleFunc("/admin/", s.handleAdmin)
+
 	// API routes must be registered before the catch-all / handler
 	apiMux := http.NewServeMux()
 	apiMux.HandleFunc("/status", s.authMiddleware(s.handleAPIStatus))
 	apiMux.HandleFunc("/sites", s.authMiddleware(s.handleAPISites))
 	apiMux.HandleFunc("/sites/", s.authMiddleware(s.handleAPISite))
-	
+
 	mux.Handle("/api/", http.StripPrefix("/api", apiMux))
 	mux.HandleFunc("/", s.handleLanding)
 	mux.HandleFunc("/health", s.handleHealth)
@@ -219,7 +222,14 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 		s.handleAPISiteDNS(w, r, slug)
 	case "write":
 		s.handleAPISiteWrite(w, r, slug)
+	case "files":
+		s.handleAdminAPIFiles(w, r)
 	default:
+		// Check if it's a file read path (sites/{slug}/files/{path})
+		if strings.HasPrefix(action, "files/") {
+			s.handleAdminAPIFileRead(w, r)
+			return
+		}
 		s.handleAPISiteDetails(w, r, slug)
 	}
 }

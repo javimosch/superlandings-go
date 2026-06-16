@@ -133,6 +133,29 @@ func runMigrations() error {
 		`CREATE INDEX IF NOT EXISTS idx_site_versions_site_id ON site_versions(site_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_site_versions_active ON site_versions(is_active)`,
 		`CREATE INDEX IF NOT EXISTS idx_site_domains_site_id ON site_domains(site_id)`,
+		`CREATE TABLE IF NOT EXISTS site_users (
+			id TEXT PRIMARY KEY,
+			site_id TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			role TEXT NOT NULL DEFAULT 'viewer',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			UNIQUE(site_id, user_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS site_admin_tokens (
+			id TEXT PRIMARY KEY,
+			site_id TEXT NOT NULL,
+			token TEXT UNIQUE NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			expires_at DATETIME,
+			is_active BOOLEAN DEFAULT 1,
+			FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_site_users_site_id ON site_users(site_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_site_users_user_id ON site_users(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_site_admin_tokens_site_id ON site_admin_tokens(site_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_site_admin_tokens_token ON site_admin_tokens(token)`,
 	}
 
 	for _, migration := range migrations {

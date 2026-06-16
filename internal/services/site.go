@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/javimosch/superlandings-go/internal/config"
 	"github.com/javimosch/superlandings-go/internal/db"
+	"github.com/yuin/goldmark"
 )
 
 type SiteService struct {
@@ -196,8 +198,33 @@ func (s *SiteService) GetActiveVersionContent(siteSlug, filePath string) (string
 	if filePath == "" || filePath == "/" {
 		filePath = "index.html"
 	} else {
-		// Remove leading slash and add .html if no extension
+		// Remove leading slash
 		filePath = strings.TrimPrefix(filePath, "/")
+
+		// Try pages/ directory first
+		pagesPath := filepath.Join("pages", filePath)
+		if !strings.Contains(filePath, ".") {
+			pagesPath += ".html"
+		}
+
+		// Try blog/ directory
+		blogPath := filepath.Join("blog", filePath)
+		if !strings.Contains(filePath, ".") {
+			blogPath += ".md"
+		}
+
+		// Try each path in order: pages/, blog/, then root
+		pathsToTry := []string{pagesPath, blogPath, filePath}
+		versionDir := filepath.Join(s.cfg.SitesDir, site.Slug, version.Version)
+
+		for _, path := range pathsToTry {
+			fullPath := filepath.Join(versionDir, path)
+			if content, err := os.ReadFile(fullPath); err == nil {
+				return s.processContent(string(content), path, versionDir, siteSlug, site.ID)
+			}
+		}
+
+		// If no extension, try adding .html
 		if !strings.Contains(filePath, ".") {
 			filePath += ".html"
 		}
@@ -210,24 +237,50 @@ func (s *SiteService) GetActiveVersionContent(siteSlug, filePath string) (string
 		return "", fmt.Errorf("failed to read %s: %w", filePath, err)
 	}
 
-	// Process includes first
-	versionDir := filepath.Join(s.cfg.SitesDir, site.Slug, version.Version)
-	processedContent := s.processIncludes(string(content), versionDir)
+	return s.processContent(string(content), filePath, filepath.Join(s.cfg.SitesDir, site.Slug, version.Version), siteSlug, site.ID)
+}
 
-	// Check for data file (e.g., index.html.data.json)
-	dataFilePath := indexPath + ".data.json"
-	data, err := s.loadDataFile(dataFilePath)
-	if err == nil {
-		// Render with Go template
-		renderedContent, err := s.renderTemplate(processedContent, data, versionDir)
-		if err != nil {
-			return "", fmt.Errorf("failed to render template: %w", err)
+// processContent processes file content with includes, templates, and auto-nav
+func (s *SiteService) processContent(content, filePath, versionDir, siteSlug, siteID string) (string, error) {
+	// Convert markdown to HTML if needed
+	if strings.HasSuffix(filePath, ".md") {
+		var buf bytes.Buffer
+		md := goldmark.New()
+		if err := md.Convert([]byte(content), &buf); err != nil {
+			return "", fmt.Errorf("failed to convert markdown: %w", err)
 		}
-		return renderedContent, nil
+		content = buf.String()
 	}
 
-	// No data file, return processed content as-is
-	return processedContent, nil
+	// Process includes first
+	processedContent := s.processIncludes(content, versionDir)
+
+	// Check for data file (e.g., index.html.data.json)
+	dataFilePath := filepath.Join(versionDir, filePath+".data.json")
+	data, err := s.loadDataFile(dataFilePath)
+
+	if err != nil {
+		// No data file, create empty data map
+		data = make(map[string]interface{})
+	}
+
+	// If serving index.html and nav_pages not in data, auto-discover pages
+	if strings.HasSuffix(filePath, "index.html") {
+		if _, ok := data["nav_pages"]; !ok {
+			pages, err := s.DiscoverPages(siteSlug)
+			if err == nil {
+				data["nav_pages"] = pages
+			}
+		}
+	}
+
+	// Render with Go template
+	renderedContent, err := s.renderTemplate(processedContent, data, versionDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to render template: %w", err)
+	}
+
+	return renderedContent, nil
 }
 
 // loadDataFile loads data from a .data.json file
@@ -351,4 +404,58 @@ func (s *SiteService) Export(siteSlug string) (string, error) {
 	}
 
 	return string(jsonData), nil
+}
+
+// DiscoverPages discovers all pages in the pages/ directory
+func (s *SiteService) DiscoverPages(siteSlug string) ([]map[string]interface{}, error) {
+	site, err := s.siteRepo.GetBySlug(siteSlug)
+	if err != nil {
+		return nil, fmt.Errorf("site not found: %w", err)
+	}
+
+	// Get active version
+	version, err := s.versionRepo.GetActiveVersion(site.ID)
+	if err != nil {
+		return nil, fmt.Errorf("no active version: %w", err)
+	}
+
+	// Check if pages/ directory exists
+	pagesDir := filepath.Join(s.cfg.SitesDir, site.Slug, version.Version, "pages")
+	if _, err := os.Stat(pagesDir); os.IsNotExist(err) {
+		return []map[string]interface{}{}, nil
+	}
+
+	// Read all .html files in pages/
+	entries, err := os.ReadDir(pagesDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read pages directory: %w", err)
+	}
+
+	var pages []map[string]interface{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".html") {
+			continue
+		}
+
+		// Extract slug (filename without .html)
+		slug := strings.TrimSuffix(entry.Name(), ".html")
+
+		// Try to load metadata from .data.json file
+		dataFile := filepath.Join(pagesDir, entry.Name()+".data.json")
+		metadata := make(map[string]interface{})
+		if data, err := os.ReadFile(dataFile); err == nil {
+			json.Unmarshal(data, &metadata)
+		}
+
+		// Set default title from slug if not in metadata
+		if _, ok := metadata["title"]; !ok {
+			metadata["title"] = strings.ReplaceAll(slug, "-", " ")
+			metadata["title"] = strings.ToUpper(string(metadata["title"].(string))[0:1]) + metadata["title"].(string)[1:]
+		}
+
+		metadata["slug"] = slug
+		pages = append(pages, metadata)
+	}
+
+	return pages, nil
 }

@@ -445,4 +445,5 @@ func init() {
 	siteCmd.AddCommand(siteVersionCmd)
 	siteCmd.AddCommand(siteWriteCmd)
 	siteCmd.AddCommand(siteDnsCmd)
+	siteCmd.AddCommand(siteAdminCmd)
 }

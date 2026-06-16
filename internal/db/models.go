@@ -85,3 +85,22 @@ type SiteDomain struct {
 	Traefik   bool      `json:"traefik" db:"traefik"`
 	CreatedAt time.Time `json:"createdAt" db:"created_at"`
 }
+
+// SiteUser represents a user's access to a site
+type SiteUser struct {
+	ID        string    `json:"id" db:"id"`
+	SiteID    string    `json:"siteId" db:"site_id"`
+	UserID    string    `json:"userId" db:"user_id"`
+	Role      string    `json:"role" db:"role"` // editor, viewer
+	CreatedAt time.Time `json:"createdAt" db:"created_at"`
+}
+
+// SiteAdminToken represents an admin access token for a site
+type SiteAdminToken struct {
+	ID        string     `json:"id" db:"id"`
+	SiteID    string     `json:"siteId" db:"site_id"`
+	Token     string     `json:"token" db:"token"`
+	CreatedAt time.Time  `json:"createdAt" db:"created_at"`
+	ExpiresAt *time.Time `json:"expiresAt,omitempty" db:"expires_at"`
+	IsActive  bool       `json:"isActive" db:"is_active"`
+}
