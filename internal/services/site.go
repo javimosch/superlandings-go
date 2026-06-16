@@ -1,7 +1,9 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
+	"html/template"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -208,11 +210,68 @@ func (s *SiteService) GetActiveVersionContent(siteSlug, filePath string) (string
 		return "", fmt.Errorf("failed to read %s: %w", filePath, err)
 	}
 
-	// Process includes
+	// Process includes first
 	versionDir := filepath.Join(s.cfg.SitesDir, site.Slug, version.Version)
 	processedContent := s.processIncludes(string(content), versionDir)
 
+	// Check for data file (e.g., index.html.data.json)
+	dataFilePath := indexPath + ".data.json"
+	data, err := s.loadDataFile(dataFilePath)
+	if err == nil {
+		// Render with Go template
+		renderedContent, err := s.renderTemplate(processedContent, data, versionDir)
+		if err != nil {
+			return "", fmt.Errorf("failed to render template: %w", err)
+		}
+		return renderedContent, nil
+	}
+
+	// No data file, return processed content as-is
 	return processedContent, nil
+}
+
+// loadDataFile loads data from a .data.json file
+func (s *SiteService) loadDataFile(dataPath string) (map[string]interface{}, error) {
+	data, err := os.ReadFile(dataPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse data file: %w", err)
+	}
+
+	return result, nil
+}
+
+// renderTemplate renders content with Go's html/template
+func (s *SiteService) renderTemplate(content string, data map[string]interface{}, baseDir string) (string, error) {
+	// Create template
+	tmpl, err := template.New("page").Parse(content)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template: %w", err)
+	}
+
+	// Add custom functions
+	tmpl = tmpl.Funcs(template.FuncMap{
+		"include": func(path string) (string, error) {
+			fullPath := filepath.Join(baseDir, path)
+			content, err := os.ReadFile(fullPath)
+			if err != nil {
+				return "", err
+			}
+			return string(content), nil
+		},
+	})
+
+	// Render template
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 // processIncludes processes {{>include "path"}} directives

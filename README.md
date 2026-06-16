@@ -15,30 +15,32 @@
 
 ## ⚡ TL;DR
 
-> Single-binary landing page management with versioning, dynamic blocks, and SQLite persistence.
+> Single-binary landing page management with versioning, dynamic blocks, Go templates, and SQLite persistence.
 
 ```bash
 # Create a site with versioning
 sl-cli site create --name "My Site" --slug "my-site"
 sl-cli site version create my-site --version "v1" --comment "Initial version"
 
-# Add pages with dynamic blocks
+# Option 1: Simple includes (no data file needed)
 sl-cli site write my-site v1 "index.html" --content '{{>include "nav.html"}}<h1>Home</h1>{{>include "footer.html"}}'
 sl-cli site write my-site v1 "nav.html" --content '<nav><a href="/my-site/">Home</a></nav>'
-sl-cli site write my-site v1 "footer.html" --content '<footer>&copy; 2025</footer>'
+
+# Option 2: Go templates with variables (create .data.json file)
+sl-cli site write my-site v1 "index.html" --content '<h1>{{.title}}</h1>{{if .showBanner}}<div>{{.bannerText}}</div>{{end}}{{range .posts}}<h2>{{.title}}</h2>{{end}}'
+# Then create index.html.data.json with {"title":"My Site","showBanner":true,"bannerText":"Welcome!","posts":[{"title":"Post 1"}]}
 
 # Start daemon (auto-installs systemd service)
 sl-cli backend start --daemon --port 3099
 
 # Access
-curl http://localhost:3099/my-site/        # index.html with dynamic blocks
-curl http://localhost:3099/my-site/about    # about.html with dynamic blocks
+curl http://localhost:3099/my-site/        # Serves rendered template
 ```
 
 👉 **Less moving parts** — No Docker, no Node.js runtime, no MongoDB
 👉 **Agent-first CLI** — JSON output, semantic exit codes, deterministic behavior
 👉 **Hybrid storage** — SQLite for metadata, file system for content
-👉 **Dynamic blocks** — `{{>include "path"}}` syntax for template composition
+👉 **Two templating options** — Simple includes OR Go's html/template
 👉 **Version control** — File system based with instant rollback
 
 ## The Problem
@@ -88,11 +90,14 @@ go build -o sl-cli ./cmd/sl-cli
 # Create version
 ./sl-cli site version create my-site --version "v1" --comment "Initial version"
 
-# Add pages with dynamic blocks
+# Option 1: Simple includes (no data file needed)
 ./sl-cli site write my-site v1 "index.html" --content '{{>include "nav.html"}}<h1>Home</h1>{{>include "footer.html"}}'
-./sl-cli site write my-site v1 "about.html" --content '{{>include "nav.html"}}<h1>About</h1>{{>include "footer.html"}}'
 ./sl-cli site write my-site v1 "nav.html" --content '<nav><a href="/my-site/">Home</a> <a href="/my-site/about">About</a></nav>'
 ./sl-cli site write my-site v1 "footer.html" --content '<footer>&copy; 2025 My Site</footer>'
+
+# Option 2: Go templates with variables (create .data.json file)
+./sl-cli site write my-site v1 "index.html" --content '<h1>{{.title}}</h1>{{if .showBanner}}<div>{{.bannerText}}</div>{{end}}{{range .posts}}<h2>{{.title}}</h2>{{end}}'
+# Create index.html.data.json: {"title":"My Site","showBanner":true,"bannerText":"Welcome!","posts":[{"title":"Post 1"}]}
 
 # Start daemon (auto systemd installation)
 sudo ./sl-cli backend start --daemon --port 3099
@@ -251,6 +256,51 @@ Include syntax processed at serve time:
 - Relative to version directory
 - Processed on each request (no build step)
 - Works with sub-path routing (`/site/page`)
+
+### Go Templates
+
+Native Go `html/template` support with variables, conditionals, and loops:
+
+```html
+<!-- index.html -->
+<h1>{{.title}}</h1>
+{{if .showBanner}}
+  <div class="banner">{{.bannerText}}</div>
+{{end}}
+{{range .posts}}
+  <article>
+    <h2>{{.title}}</h2>
+    <p>{{.content}}</p>
+  </article>
+{{end}}
+```
+
+**Data file (index.html.data.json):**
+```json
+{
+  "title": "My Blog",
+  "showBanner": true,
+  "bannerText": "Welcome!",
+  "posts": [
+    {"title": "Post 1", "content": "..."},
+    {"title": "Post 2", "content": "..."}
+  ]
+}
+```
+
+**Features:**
+- Native Go template engine (built-in, secure)
+- Variables: `{{.variable}}`
+- Conditionals: `{{if .condition}}...{{end}}`
+- Loops: `{{range .items}}...{{end}}`
+- Auto-escapes HTML (XSS protection)
+- Optional — works without data file (just includes)
+
+**Two Approaches:**
+1. **Simple includes** — Use `{{>include "path"}}` for basic composition
+2. **Go templates** — Create `.data.json` file for variables, conditionals, loops
+
+Both can be used together: Go templates can include files, and includes can contain Go template syntax.
 
 ### Version Control
 
@@ -435,6 +485,7 @@ SuperLandings Go is designed to be lightweight — Go's compiled nature and mini
 | Site CRUD operations | ✅ done |
 | Site version management (create/list/switch) | ✅ done |
 | Dynamic blocks (`{{>include "path"}}`) | ✅ done |
+| Go templates (html/template) | ✅ done |
 | File system versioning | ✅ done |
 | Hybrid storage (SQLite + FS) | ✅ done |
 | Sub-path routing (`/site/page`) | ✅ done |
@@ -443,7 +494,6 @@ SuperLandings Go is designed to be lightweight — Go's compiled nature and mini
 | Systemd auto-installation | ✅ done |
 | Agent-first CLI (JSON output, exit codes) | ✅ done |
 | Legacy landing support | ✅ done |
-| EJS rendering | ❌ TODO |
 | Traefik integration | ❌ TODO |
 | Cloudflare integration | ❌ TODO |
 | Blog module | ❌ TODO |
