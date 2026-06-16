@@ -367,6 +367,11 @@ sl-cli site sync <slug> --host <server> --user <user> --key <key>
    - `hotify-cli setup --id <app> --domain <domain> --port <port> --cmd <cmd>`
    - `hotify-cli setup-traefik --id <app> --challenge-type http`
    - This ensures proper configuration management and DNS integration
+   
+   **Note on domain duplication:** If hotify duplicates the domain (e.g., `intrane.intrane.fr.intrane.fr`), it may be due to a base domain configuration in hotify. Workaround:
+   - Use the subdomain only (e.g., `intrane`) if hotify has base domain configured
+   - Or manually update Cloudflare DNS to point to the correct IP
+   - Traefik routing works correctly regardless of DNS (tested with Host header)
 
 3. **Verify files before daemon restart**: After sync, check if files exist on remote (`ls -la ~/.superlandings/sites/<slug>/<version>/`) before restarting daemon.
 
