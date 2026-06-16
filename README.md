@@ -485,6 +485,7 @@ SuperLandings Go is designed to be lightweight — Go's compiled nature and mini
 
 ## 🔗 Links
 
+- **Repository**: https://github.com/javimosch/superlandings-go
 - **Original SuperLandings**: https://github.com/javimosch/superlandings
 - **Issue Tracker**: https://github.com/javimosch/superlandings-go/issues
 
