@@ -233,6 +233,27 @@ curl http://localhost:3099/test
 
 ## Gotchas
 
+### Backend API Endpoint Definitions ⚠️ CRITICAL
+
+**Route Registration Order:** HTTP route registration order matters in Go's `http.ServeMux`. Register specific routes (like `/api/`) BEFORE the catch-all `/` handler, otherwise the catch-all will intercept all requests.
+
+**Path Parsing with StripPrefix:** When using `http.StripPrefix("/api", apiMux)`, the handler receives paths WITHOUT the `/api/` prefix. Do NOT try to strip `/api/` again in the handler.
+
+**Example:**
+```go
+// Route registration (CORRECT order)
+mux.Handle("/api/", http.StripPrefix("/api", apiMux))  // Specific first
+mux.HandleFunc("/", handleLanding)  // Catch-all last
+
+// Handler receives path without /api/
+func handleAPISite(w http.ResponseWriter, r *http.Request) {
+    // r.URL.Path is "/sites/intrane" not "/api/sites/intrane"
+    path := strings.TrimPrefix(r.URL.Path, "/sites/")  // NOT "/api/sites/"
+}
+```
+
+**Database Initialization:** Do NOT use `defer db.Close()` in the server start function. The defer runs when the function returns, but the server runs in a loop, so the database closes before any requests. Keep the database open for the server lifetime.
+
 ### File Size Limits
 - **ALWAYS check LOC** before committing
 - Split immediately if over limit
