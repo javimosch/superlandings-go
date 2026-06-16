@@ -97,6 +97,29 @@ func (c *RemoteClient) SyncSite(slug string, payload map[string]interface{}) (ma
 	return c.postJSON("/api/sites/"+slug+"/sync", payload)
 }
 
+func (c *RemoteClient) ListDNS(siteSlug string) (map[string]interface{}, error) {
+	resp, err := c.makeRequest("GET", "/api/sites/"+siteSlug+"/dns", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	
+	return c.parseResponse(resp)
+}
+
+func (c *RemoteClient) SetupDNS(siteSlug string, domain, ip string, traefik bool) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"domain":  domain,
+		"ip":      ip,
+		"traefik": traefik,
+	}
+	return c.postJSON("/api/sites/"+siteSlug+"/dns/setup", payload)
+}
+
+func (c *RemoteClient) RemoveDNS(siteSlug string) (map[string]interface{}, error) {
+	return c.postJSON("/api/sites/"+siteSlug+"/dns/remove", map[string]interface{}{})
+}
+
 func (c *RemoteClient) makeRequest(method, path string, body []byte) (*http.Response, error) {
 	url := c.baseURL + path
 	

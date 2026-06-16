@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -203,6 +204,8 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 		s.handleAPISiteVersions(w, r, slug)
 	case "sync":
 		s.handleAPISiteSync(w, r, slug)
+	case "dns":
+		s.handleAPISiteDNS(w, r, slug)
 	default:
 		s.handleAPISiteDetails(w, r, slug)
 	}
@@ -315,6 +318,108 @@ func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug 
 	// Return success
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"success":true,"message":"site synced successfully"}`))
+}
+
+func (s *Server) handleAPISiteDNS(w http.ResponseWriter, r *http.Request, slug string) {
+	// Get site by slug
+	sites, err := s.siteService.List()
+	if err != nil {
+		http.Error(w, "Site not found", http.StatusNotFound)
+		return
+	}
+	
+	var site *db.Site
+	for _, s := range sites {
+		if s.Slug == slug {
+			site = &s
+			break
+		}
+	}
+	
+	if site == nil {
+		http.Error(w, "Site not found", http.StatusNotFound)
+		return
+	}
+	
+	dnsService := services.NewDNSService(s.cfg)
+	
+	if r.Method == "GET" {
+		// List DNS entries
+		domains, err := dnsService.GetDomains(site.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		
+		w.Header().Set("Content-Type", "application/json")
+		json := "{\"domains\":["
+		for i, d := range domains {
+			if i > 0 {
+				json += ","
+			}
+			json += fmt.Sprintf(`{"domain":"%s","ip":"%s","traefik":%t}`,
+				d.Domain, d.IP, d.Traefik)
+		}
+		json += "]}"
+		w.Write([]byte(json))
+		return
+	}
+	
+	if r.Method == "POST" {
+		// Parse request body
+		var payload struct {
+			Domain  string `json:"domain"`
+			IP      string `json:"ip"`
+			Traefik bool   `json:"traefik"`
+			Action  string `json:"action"` // "setup" or "remove"
+		}
+		
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		
+		// Determine action from URL path
+		path := strings.TrimPrefix(r.URL.Path, "/sites/")
+		parts := strings.Split(path, "/")
+		action := ""
+		if len(parts) > 2 {
+			action = parts[2]
+		}
+		
+		if action == "setup" {
+			if payload.Domain == "" || payload.IP == "" {
+				http.Error(w, "domain and ip are required", http.StatusBadRequest)
+				return
+			}
+			
+			if err := dnsService.SetupDNS(site.ID, slug, payload.Domain, payload.IP, payload.Traefik); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"success":true}`))
+			return
+		}
+		
+		if action == "remove" {
+			// RemoveDNS removes all DNS for a site via hotify-cli prune
+			if err := dnsService.RemoveDNS(slug); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"success":true}`))
+			return
+		}
+		
+		http.Error(w, "Invalid action", http.StatusBadRequest)
+		return
+	}
+	
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
 // authMiddleware validates Bearer token authentication

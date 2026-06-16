@@ -370,6 +370,12 @@ var siteDnsRemoveCmd = &cobra.Command{
 	Short: "Remove DNS configuration for a site",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		target, _ := cmd.Flags().GetString("target")
+		if target != "" {
+			handleRemoteDNSRemove(target, args)
+			return
+		}
+
 		if err := initializeDB(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 			os.Exit(1)
