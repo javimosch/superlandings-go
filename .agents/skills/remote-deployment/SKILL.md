@@ -366,6 +366,78 @@ sl-cli site sync <slug> --host <server> --user <user> --key <key>
 
 5. **Check sync logs**: If sync fails, check the specific error output - rsync, scp, and ssh each have their own error messages that help diagnose issues.
 
+## Migration from sl-cli v1 to v2
+
+### Process to migrate from Node.js sl-cli to Go sl-cli:
+
+1. **Export from v1:**
+```bash
+cd ~/ai/superlandings
+MODE=staging node cli/index.js landing content get <slug> --output /tmp/<slug>.html
+```
+
+2. **Create site in v2:**
+```bash
+cd ~/ai/superlandings-go
+sl-cli site create --name "<Site Name>" --slug <slug>
+sl-cli site version create <slug> --version v1 --comment "Migrated from v1"
+```
+
+3. **Copy content:**
+```bash
+cp /tmp/<slug>.html ~/.superlandings/sites/<slug>/v1/index.html
+```
+
+4. **Deploy to remote:**
+```bash
+# Create site on remote first
+ssh user@server "sl-cli site create --name '<Site Name>' --slug <slug>"
+ssh user@server "mkdir -p ~/.superlandings/sites/<slug>/v1"
+
+# Copy files
+scp ~/.superlandings/sites/<slug>/v1/index.html user@server:~/.superlandings/sites/<slug>/v1/index.html
+
+# Create version on remote
+ssh user@server "sl-cli site version create <slug> --version v1 --comment 'Migrated from v1'"
+```
+
+5. **Configure Traefik on remote:**
+```bash
+# Add to /etc/traefik/dynamic.yml
+# Include router, service, and middleware with addPrefix
+sudo systemctl restart traefik
+```
+
+6. **Configure DNS:**
+- Use hotify-cli or manually update Cloudflare
+- Point domain to server IP
+- Ensure Traefik SSL cert is configured
+
+### Migration Example (intrane.fr → intrane.intrane.fr):
+
+```bash
+# Export from v1
+cd ~/ai/superlandings
+MODE=staging node cli/index.js landing content get intrane-fr --output /tmp/intrane-fr.html
+
+# Create in v2
+cd ~/ai/superlandings-go
+sl-cli site create --name "Intrane.fr" --slug intrane
+sl-cli site version create intrane --version v1 --comment "Migrated from sl-cli v1"
+cp /tmp/intrane-fr.html ~/.superlandings/sites/intrane/v1/index.html
+
+# Deploy to dk2
+ssh dk2 "sl-cli site create --name 'Intrane.fr' --slug intrane"
+ssh dk2 "mkdir -p ~/.superlandings/sites/intrane/v1"
+scp ~/.superlandings/sites/intrane/v1/index.html dk2@server:~/.superlandings/sites/intrane/v1/index.html
+ssh dk2 "sl-cli site version create intrane --version v1 --comment 'Migrated from v1'"
+
+# Configure Traefik (add to /etc/traefik/dynamic.yml)
+# Restart traefik
+```
+
+**Note:** Sync command (`sl-cli site sync`) may fail if site exists on remote but has no versions. Manual copy is more reliable for initial migration.
+
 ## References
 
 - hotify-integration skill for hotify-cli details
