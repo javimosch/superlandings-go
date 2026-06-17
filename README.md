@@ -188,8 +188,8 @@ GOOS=windows GOARCH=amd64 go build -o sl-cli.exe ./cmd/sl-cli
 - **Repository**: https://github.com/javimosch/superlandings-go
 - **Original SuperLandings**: https://github.com/javimosch/superlandings
 - **Issue Tracker**: https://github.com/javimosch/superlandings-go/issues
-- **Vision**: https://github.com/javimosch/superlandings-go/blob/master/docs/VISION.md
-- **Roadmap**: https://github.com/javimosch/superlandings-go/blob/master/docs/ROADMAP.md
+- **Vision**: https://github.com/javimosch/superlandings-go/blob/master/docs/vision.md
+- **Roadmap**: https://github.com/javimosch/superlandings-go/blob/master/docs/roadmap.md
 
 ## License
 

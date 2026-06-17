@@ -26,9 +26,9 @@ superlandings-go/
 ├── README.md               # Project documentation
 ├── AGENTS.md                # Agent guide
 └── docs/                   # Documentation
-    ├── BRAINSTORM.md       # Architecture brainstorm
-    ├── ROADMAP.md          # Project roadmap
-    └── SETUP_SUMMARY.md    # This file
+    ├── brainstorm.md       # Architecture brainstorm
+    ├── roadmap.md          # Project roadmap
+    └── setup-summary.md    # This file
 ```
 
 ### Implemented Features

@@ -211,7 +211,7 @@ go test ./...
 2. Add migration to `internal/db/sqlite.go` (max 400 LOC)
 3. Test by deleting `~/.superlandings/db.sql` and restarting
 4. Update repository if needed
-5. Document in docs/BRAINSTORM.md
+5. Document in docs/brainstorm.md
 
 ## Testing
 
