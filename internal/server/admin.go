@@ -473,6 +473,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 		<a href="javascript:logout()" style="color:var(--muted);text-decoration:none;font-size:.85rem">Logout</a>
 		<a href="/admin" style="color:var(--muted);text-decoration:none;font-size:.85rem">Dashboard</a>
 		<a href="/` + site.Slug + `" target="_blank">View site &rarr;</a>
+		<button onclick="shareAuthUrl()" style="background:none;border:1px solid var(--border);border-radius:4px;padding:.25rem .5rem;cursor:pointer;font-size:.8rem;color:var(--muted)">Share</button>
 	</div>
 </div>
 <div class="wrap" id="app">
@@ -749,6 +750,39 @@ function renderSubmissions(panel,sec){
 
 function checkAuth(){var c=document.cookie.match('(^|; )sl_admin_session=([^;]*)');if(c){document.getElementById('auth-state').textContent='Logged in';}}
 function logout(){location.href='/admin/logout?slug='+slug;}
+
+function shareAuthUrl(){
+	var email=(document.getElementById('auth-state')||{}).textContent||'';
+	email=email.split(' ')[0].trim();
+	var pwd='';
+	var k='sl_creds_'+slug;
+	var s=localStorage.getItem(k);
+	if(s)try{pwd=JSON.parse(s).p||'';}catch(e){}
+	if(!pwd){var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');var a=accts.find(function(x){return x.e===email});if(a)pwd=a.p||'';}
+	if(!email||!pwd){toast('No saved credentials to share');return;}
+	var url=location.origin+'/admin/'+slug+'?auth='+btoa(email+':'+pwd);
+	navigator.clipboard.writeText(url).then(function(){toast('Auth URL copied!');});
+}
+
+// Auto-login from ?auth= param
+(function(){
+	var m=location.search.match(/[?&]auth=([^&]+)/);
+	if(!m)return;
+	var auth=atob(decodeURIComponent(m[1]));
+	var idx=auth.indexOf(':');
+	if(idx<0)return;
+	var email=auth.slice(0,idx),pwd=auth.slice(idx+1);
+	document.getElementById('login-email').value=email;
+	document.getElementById('login-password').value=pwd;
+	// Save to remember-me
+	localStorage.setItem('sl_creds_'+slug,JSON.stringify({e:email,p:pwd}));
+	var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');
+	if(!accts.find(function(a){return a.e===email}))accts.push({e:email,p:pwd});
+	localStorage.setItem('sl_accounts',JSON.stringify(accts));
+	// Auto-submit login form if it exists
+	var form=document.getElementById('login-form')||document.querySelector('form');
+	if(form)form.submit();
+})();
 
 buildUI();
 checkAuth();
