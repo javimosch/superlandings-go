@@ -443,7 +443,17 @@ function renderForm(panel,sec){
 	if(!panel)return;
 	const fields=sec.fields||[];
 	const source=sec.source||'index.html.data.json';
-	panel.innerHTML='<div class="form-grid" id="form-fields"><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" data-source="'+source+'" onclick="saveForm()">Save Changes</button></div>';
+	const isRaw=source.endsWith('.html')||source.endsWith('.htm');
+	panel.innerHTML='<div class="form-grid" id="form-fields"><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" data-source="'+source+'" data-raw="'+(isRaw?'1':'0')+'" onclick="saveForm()">Save Changes</button></div>';
+
+	if(isRaw){
+		// Raw HTML editor: fetch file content directly
+		fetch('/api/sites/'+slug+'/files/'+source).then(r=>r.json()).then(d=>{
+			const val=(d.content||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+			document.getElementById('form-fields').innerHTML='<div><label>Full HTML</label><textarea id="f__raw" style="min-height:600px;font-family:monospace;font-size:.85rem">'+val+'</textarea></div>';
+		}).catch(function(){document.getElementById('form-fields').innerHTML='<div class="empty"><p>Failed to load file.</p></div>';});
+		return;
+	}
 
 	fetch('/api/sites/'+slug+'/files/'+source).then(r=>r.json()).then(d=>{
 		let vals={};
@@ -462,12 +472,14 @@ function renderForm(panel,sec){
 function saveForm(){
 	var btn=document.getElementById('form-save-btn');
 	var source=btn.getAttribute('data-source');
+	var isRaw=btn.getAttribute('data-raw')==='1';
 	var fields=document.querySelectorAll('#form-fields input, #form-fields textarea');
 	if(!fields.length){toast('Form not loaded yet, try again');return;}
-	var obj={};
-	fields.forEach(function(f){obj[f.id.replace('f_','')]=f.value;});
 	btn.textContent='Saving...';
-	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:source,content:JSON.stringify(obj,null,'  ')})})
+	var content;
+	if(isRaw){content=document.getElementById('f__raw').value;}
+	else{var obj={};fields.forEach(function(f){obj[f.id.replace('f_','')]=f.value;});content=JSON.stringify(obj,null,'  ');}
+	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:source,content:content})})
 	.then(function(r){return r.json();}).then(function(d){
 		if(d.success){toast('Saved!');btn.textContent='Save Changes';}
 		else{toast('Error saving');btn.textContent='Save Changes';}
