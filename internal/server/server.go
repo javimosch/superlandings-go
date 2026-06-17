@@ -72,6 +72,19 @@ func (s *Server) Start(port int) error {
 func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
 
+	// Query param fallback for local testing: ?site=vdb-landing
+	// Sets a cookie so subsequent link clicks preserve the site context
+	if qs := r.URL.Query().Get("site"); qs != "" {
+		http.SetCookie(w, &http.Cookie{
+			Name:  "sl_site",
+			Value: qs,
+			Path:  "/",
+		})
+		// Redirect to clean URL (cookie handles subsequent requests)
+		http.Redirect(w, r, "/"+path, http.StatusFound)
+		return
+	}
+
 	if path == "" {
 		// Try host-based resolution for root path
 		siteSlug, _, fromDomain := s.resolveSite("/", r.Host)
@@ -88,6 +101,15 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 
 	// Resolve site slug: try path prefix first, then Host header (domain-based)
 	siteSlug, filePath, fromDomain := s.resolveSite(path, r.Host)
+
+	// Cookie-based fallback for local testing (set by ?site= param)
+	if _, err := s.siteService.GetBySlug(siteSlug); err != nil {
+		if c, cErr := r.Cookie("sl_site"); cErr == nil && c.Value != "" {
+			siteSlug = c.Value
+			filePath = path
+			fromDomain = true
+		}
+	}
 
 	// Try to serve as a static asset first (shared across versions)
 	if filePath != "" && isAssetExt(filePath) {
