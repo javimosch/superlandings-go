@@ -262,7 +262,8 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 		});
 		document.getElementById('login-form').addEventListener('submit',function(){
 			var cb=document.getElementById('remember-me');
-			if(cb.checked){localStorage.setItem(k,JSON.stringify({e:document.getElementById('login-email').value,p:document.getElementById('login-password').value}));}
+			if(cb.checked){var entry={e:document.getElementById('login-email').value,p:document.getElementById('login-password').value};localStorage.setItem(k,JSON.stringify(entry));
+		var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');var found=accts.findIndex(function(a){return a.e===entry.e});if(found>=0)accts[found]=entry;else accts.push(entry);localStorage.setItem('sl_accounts',JSON.stringify(accts));}
 		});
 	})();
 	</script>
@@ -1234,7 +1235,8 @@ func (s *Server) renderDashboardLogin(w http.ResponseWriter, msg string) {
 	});
 	document.querySelector('form').addEventListener('submit',function(){
 		var cb=document.getElementById('remember-me');
-		if(cb.checked){localStorage.setItem(k,JSON.stringify({e:document.getElementById('login-email').value,p:document.getElementById('login-password').value}));}
+		if(cb.checked){var entry={e:document.getElementById('login-email').value,p:document.getElementById('login-password').value};localStorage.setItem(k,JSON.stringify(entry));
+		var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');var found=accts.findIndex(function(a){return a.e===entry.e});if(found>=0)accts[found]=entry;else accts.push(entry);localStorage.setItem('sl_accounts',JSON.stringify(accts));}
 	});
 })();
 	</script>
@@ -1308,10 +1310,28 @@ func (s *Server) renderDashboard(w http.ResponseWriter, r *http.Request, userID 
 <div class="container">
 	<div class="header">
 		<h1>Sites</h1>
-		<div><span style="color:#666;font-size:.9rem">%s</span> &middot; <a href="/admin/logout" class="logout">Logout</a></div>
+		<div><span style="color:#666;font-size:.9rem">%s</span> &middot; <a href="#" onclick="switchAccount()" style="color:var(--primary);text-decoration:none;font-size:.9rem">Switch</a> &middot; <a href="/admin/logout" class="logout">Logout</a></div>
 	</div>
+	<div id="account-list" style="display:none;margin-bottom:1rem;padding:.75rem;background:var(--card);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.1)"></div>
 	<table>%s</table>
 </div>
+<script>
+function switchAccount(){
+	var list=document.getElementById('account-list');
+	if(list.style.display==='block'){list.style.display='none';return;}
+	var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');
+	if(!accts.length){list.innerHTML='<p style="color:var(--muted);font-size:.85rem">No saved accounts. Log in to save one.</p>';list.style.display='block';return;}
+	list.innerHTML='<h3 style="font-size:.85rem;margin:0 0 .5rem;color:var(--muted)">Saved accounts</h3>'+accts.map(function(a,i){return '<button onclick="useAccount('+i+')" style="display:block;width:100%;text-align:left;padding:.4rem .6rem;border:none;background:transparent;border-radius:4px;cursor:pointer;font-size:.9rem;color:var(--text)">'+a.e+'</button>';}).join('');
+	list.style.display='block';
+}
+function useAccount(i){
+	var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');
+	var a=accts[i];
+	localStorage.setItem('sl_creds_dashboard',JSON.stringify({e:a.e,p:a.p||''}));
+	document.cookie='sl_admin_session=; Path=/admin; Max-Age=0';
+	location.href='/admin';
+}
+</script>
 </body>
 </html>`, user.Email, rows)
 
