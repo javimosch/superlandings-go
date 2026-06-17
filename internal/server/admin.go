@@ -453,13 +453,11 @@ function renderForm(panel,sec){
 	if(isRaw){
 		// Raw HTML editor with CodeMirror (syntax highlighting)
 		fetch('/api/sites/'+slug+'/files/'+source).then(r=>r.json()).then(d=>{
-			const val=(d.content||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-			document.getElementById('form-fields').innerHTML='<div><label>Full HTML</label><textarea id="f__raw" style="min-height:600px;font-family:monospace">'+val+'</textarea></div>';
-			setTimeout(function(){
-				if(typeof CodeMirror!=='undefined'){
-					window._rawCM=CodeMirror.fromTextArea(document.getElementById('f__raw'),{mode:'htmlmixed',theme:'default',lineNumbers:true,matchBrackets:true,autoCloseTags:true,viewportMargin:Infinity,tabSize:2});
-				}
-			},200);
+			var cmDiv='<div style="display:flex;flex-direction:column;flex:1"><label>Full HTML</label><div id="f__raw_cm" style="flex:1;min-height:600px"></div></div>';
+			document.getElementById('form-fields').innerHTML=cmDiv;
+			if(typeof CodeMirror!=='undefined'){
+				window._rawCM=CodeMirror(document.getElementById('f__raw_cm'),{value:d.content||'',mode:'htmlmixed',theme:'default',lineNumbers:true,matchBrackets:true,viewportMargin:Infinity,tabSize:2});
+			}else{setTimeout(function(){window._rawCM=CodeMirror(document.getElementById('f__raw_cm'),{value:d.content||'',mode:'htmlmixed',theme:'default',lineNumbers:true,matchBrackets:true,viewportMargin:Infinity,tabSize:2});},500);}
 		}).catch(function(){document.getElementById('form-fields').innerHTML='<div class="empty"><p>Failed to load file.</p></div>';});
 		return;
 	}
@@ -486,7 +484,7 @@ function saveForm(){
 	if(!fields.length){toast('Form not loaded yet, try again');return;}
 	btn.textContent='Saving...';
 	var content;
-	if(isRaw){content=window._rawCM?window._rawCM.getValue():document.getElementById('f__raw').value;}
+	if(isRaw){content=window._rawCM?window._rawCM.getValue():'';}
 	else{var obj={};fields.forEach(function(f){obj[f.id.replace('f_','')]=f.value;});content=JSON.stringify(obj,null,'  ');}
 	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:source,content:content})})
 	.then(function(r){return r.json();}).then(function(d){
