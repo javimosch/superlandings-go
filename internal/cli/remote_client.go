@@ -119,6 +119,22 @@ func (c *RemoteClient) WriteFile(siteSlug, version, file, content string) (map[s
 	return c.postJSON("/api/sites/"+siteSlug+"/write", payload)
 }
 
+// WriteBatch writes multiple files to a site in a single request
+func (c *RemoteClient) WriteBatch(siteSlug, version string, files []map[string]string) (map[string]interface{}, error) {
+	var fileList []map[string]string
+	for _, f := range files {
+		fileList = append(fileList, map[string]string{
+			"file":    f["file"],
+			"content": f["content"],
+		})
+	}
+	payload := map[string]interface{}{
+		"version": version,
+		"files":   fileList,
+	}
+	return c.postJSON("/api/sites/"+siteSlug+"/write-batch", payload)
+}
+
 func (c *RemoteClient) UploadAsset(siteSlug, assetPath string, data []byte) (map[string]interface{}, error) {
 	payload := map[string]interface{}{
 		"path": assetPath,

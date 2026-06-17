@@ -283,6 +283,8 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 		s.handleAPISiteDNS(w, r, slug)
 	case "write":
 		s.handleAPISiteWrite(w, r, slug)
+	case "write-batch":
+		s.handleAPISiteWriteBatch(w, r, slug)
 	case "upload":
 		s.handleAPISiteUpload(w, r, slug)
 	case "assets":
@@ -628,6 +630,55 @@ func (s *Server) handleAPISiteWrite(w http.ResponseWriter, r *http.Request, slug
 	
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"success":true}`))
+}
+
+func (s *Server) handleAPISiteWriteBatch(w http.ResponseWriter, r *http.Request, slug string) {
+	var payload struct {
+		Version string `json:"version"`
+		Files   []struct {
+			File    string `json:"file"`
+			Content string `json:"content"`
+		} `json:"files"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if len(payload.Files) == 0 {
+		http.Error(w, "files array is required", http.StatusBadRequest)
+		return
+	}
+
+	// Default to active version if not specified
+	if payload.Version == "" {
+		site, err := s.siteService.GetBySlug(slug)
+		if err != nil {
+			http.Error(w, "Site not found", http.StatusNotFound)
+			return
+		}
+		versionRepo := db.NewSiteVersionRepository()
+		version, err := versionRepo.GetActiveVersion(site.ID)
+		if err != nil {
+			http.Error(w, "No active version", http.StatusNotFound)
+			return
+		}
+		payload.Version = version.Version
+	}
+
+	var written int
+	for _, f := range payload.Files {
+		if err := s.siteService.WriteFile(slug, payload.Version, f.File, f.Content); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(fmt.Sprintf(`{"success":false,"error":"write failed: %s","written":%d}`, err.Error(), written)))
+			return
+		}
+		written++
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(fmt.Sprintf(`{"success":true,"written":%d}`, written)))
 }
 
 func (s *Server) handleAPISiteUpload(w http.ResponseWriter, r *http.Request, slug string) {
