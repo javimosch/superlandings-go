@@ -27,11 +27,12 @@ type Site struct {
 type SiteVersion struct {
 	ID        string    `json:"id" db:"id"`
 	SiteID    string    `json:"siteId" db:"site_id"`
-	Version   string    `json:"version" db:"version"` // "v1", "v2", etc.
-	Path      string    `json:"path" db:"path"`       // FS path like "sites/foo/v1"
+	Version   string    `json:"version" db:"version"`
+	Path      string    `json:"path" db:"path"`
 	Comment   string    `json:"comment" db:"comment"`
 	Author    string    `json:"author" db:"author"`
 	IsActive  bool      `json:"isActive" db:"is_active"`
+	Orphaned  bool      `json:"orphaned" db:"orphaned"`
 	CreatedAt time.Time `json:"createdAt" db:"created_at"`
 }
 

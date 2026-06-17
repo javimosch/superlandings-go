@@ -560,13 +560,15 @@ func (s *Server) handleAPISiteVersionSwitch(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	
-	if err := s.siteService.SwitchVersion(slug, payload.Version); err != nil {
+	versioning := services.NewVersioningService(s.cfg)
+	ver, err := versioning.Rollback(slug, payload.Version)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"success":true}`))
+	w.Write([]byte(fmt.Sprintf(`{"success":true,"version":"%s","path":"%s"}`, ver.Version, ver.Path)))
 }
 
 func (s *Server) handleAPISiteWrite(w http.ResponseWriter, r *http.Request, slug string) {
@@ -574,13 +576,14 @@ func (s *Server) handleAPISiteWrite(w http.ResponseWriter, r *http.Request, slug
 		Version string `json:"version"`
 		File    string `json:"file"`
 		Content string `json:"content"`
+		Etag    string `json:"etag"`
 	}
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	
+
 	if payload.File == "" {
 		http.Error(w, "file is required", http.StatusBadRequest)
 		return
@@ -589,31 +592,33 @@ func (s *Server) handleAPISiteWrite(w http.ResponseWriter, r *http.Request, slug
 		http.Error(w, "content is required", http.StatusBadRequest)
 		return
 	}
-	
-	// Default to active version if not specified
-	if payload.Version == "" {
-		site, err := s.siteService.GetBySlug(slug)
-		if err != nil {
-			http.Error(w, "Site not found", http.StatusNotFound)
-			return
-		}
-		
-		versionRepo := db.NewSiteVersionRepository()
-		version, err := versionRepo.GetActiveVersion(site.ID)
-		if err != nil {
-			http.Error(w, "No active version", http.StatusNotFound)
-			return
-		}
-		payload.Version = version.Version
-	}
-	
-	if err := s.siteService.WriteFile(slug, payload.Version, payload.File, payload.Content); err != nil {
+
+	// Etag conflict check
+	versioning := services.NewVersioningService(s.cfg)
+	ok, err := versioning.CheckEtag(slug, payload.File, payload.Etag)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte(`{"success":false,"error":"File was modified by someone else. Reload to get the latest version.","code":"etag_conflict"}`))
+		return
+	}
+
+	// Auto-version: create new version with this write
+	newVer, err := versioning.AutoSave(slug, payload.File, payload.Content)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return new etag for subsequent saves
+	newEtag, _ := versioning.FileEtag(slug, payload.File)
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"success":true}`))
+	w.Write([]byte(fmt.Sprintf(`{"success":true,"file":"%s","version":"%s","etag":"%s"}`, payload.File, newVer.Version, newEtag)))
 }
 
 func (s *Server) handleAPISiteWriteBatch(w http.ResponseWriter, r *http.Request, slug string) {

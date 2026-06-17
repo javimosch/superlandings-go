@@ -83,6 +83,7 @@ func runMigrations() error {
 			comment TEXT,
 			author TEXT,
 			is_active BOOLEAN DEFAULT 0,
+			orphaned BOOLEAN DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
 			UNIQUE(site_id, version)
@@ -148,6 +149,9 @@ func runMigrations() error {
 			return fmt.Errorf("migration failed: %w", err)
 		}
 	}
+
+	// Add orphaned column to existing DBs (ignore if already exists)
+	DB.Exec(`ALTER TABLE site_versions ADD COLUMN orphaned BOOLEAN DEFAULT 0`)
 
 	return nil
 }

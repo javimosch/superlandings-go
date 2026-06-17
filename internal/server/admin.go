@@ -463,6 +463,13 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 <script>
 const slug='` + site.Slug + `';
 const userRole='` + userRole + `';
+var _etags={};
+function _etagFor(file){return _etags[file]||'';}
+function _handleSaveResponse(r,file){return r.json().then(function(d){
+	if(r.status===409){toast('Conflict: file was modified by someone else. Reloading...');setTimeout(function(){location.reload();},1500);throw new Error('conflict');}
+	if(d.etag)_etags[file]=d.etag;
+	return d;
+});}
 const schema=JSON.parse(document.getElementById('admin-schema').textContent);
 const sects=schema.sections||[];
 let easyMDE=null,currentPost=null;
@@ -548,11 +555,11 @@ function savePost(){if(userRole==="viewer"){toast("Viewers cannot save");return;
 	if(!fp){var sn=title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'untitled';fp='blog/'+sn+'.md';currentPost=fp;}
 
 	var btn=document.getElementById('post-title');btn.disabled=true;
-	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:fp,content:content})})
-	.then(function(r){return r.json()}).then(function(){
+	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:fp,content:content,etag:_etagFor(fp)})})
+	.then(function(r){return _handleSaveResponse(r,fp)}).then(function(){
 		// Save metadata
 		var meta={title:title,author:document.getElementById('post-author').value.trim(),date:document.getElementById('post-date').value.trim(),reading_time:document.getElementById('post-time').value.trim(),published:document.getElementById('post-published').checked};
-		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:fp+'.data.json',content:JSON.stringify(meta)})})
+		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:fp+'.data.json',content:JSON.stringify(meta),etag:_etagFor(fp+'.data.json')})})
 		.then(function(r){return r.json()}).then(function(){toast('Published!');btn.disabled=false;loadPosts();});
 	});
 }
@@ -623,11 +630,10 @@ function saveForm(){if(userRole==="viewer"){toast("Viewers cannot save");return;
 	var content;
 	if(isRaw){content=window._rawCM?window._rawCM.getValue():'';}
 	else{var obj={};fields.forEach(function(f){obj[f.id.replace('f_','')]=f.value;});content=JSON.stringify(obj,null,'  ');}
-	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:source,content:content})})
-	.then(function(r){return r.json();}).then(function(d){
-		if(d.success){toast('Saved!');btn.textContent='Save Changes';}
-		else{toast('Error saving');btn.textContent='Save Changes';}
-	}).catch(function(){toast('Network error');btn.textContent='Save Changes';});
+	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:source,content:content,etag:_etagFor(source)})})
+	.then(function(r){return _handleSaveResponse(r,source)}).then(function(d){
+		toast('Saved!');btn.textContent='Save Changes';
+	}).catch(function(e){if(e.message!=='conflict'){toast('Network error');btn.textContent='Save Changes';}});
 }
 
 function renderSubmissions(panel,sec){

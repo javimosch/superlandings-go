@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/javimosch/superlandings-go/internal/config"
 	"github.com/javimosch/superlandings-go/internal/db"
 	"github.com/javimosch/superlandings-go/internal/services"
 	"github.com/spf13/cobra"
@@ -230,6 +231,91 @@ var siteWriteCmd = &cobra.Command{
 	},
 }
 
+var (
+	siteSnapshotName string
+	siteVersionTarget string
+)
+
+// site version snapshot
+var siteVersionSnapshotCmd = &cobra.Command{
+	Use:   "snapshot <site>",
+	Short: "Create a named snapshot of the active version",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		cfg, _ := config.Load()
+		db.Initialize(cfg.DatabasePath)
+		defer db.Close()
+
+		svc := services.NewVersioningService(cfg)
+		ver, err := svc.Snapshot(args[0], siteSnapshotName)
+		if err != nil {
+			fail(ExitExtFailed, err.Error())
+		}
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true,
+			"version_name": ver.Version, "path": ver.Path,
+			"message": fmt.Sprintf("Snapshot '%s' created", ver.Version),
+		})
+	},
+}
+
+// site version history
+var siteVersionHistoryCmd = &cobra.Command{
+	Use:   "history <site>",
+	Short: "Show version history (active lineage, excludes orphaned)",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		cfg, _ := config.Load()
+		db.Initialize(cfg.DatabasePath)
+		defer db.Close()
+
+		siteRepo := db.NewSiteRepository()
+		site, err := siteRepo.GetBySlug(args[0])
+		if err != nil {
+			fail(ExitNotFound, "site not found")
+		}
+
+		verRepo := db.NewSiteVersionRepository()
+		versions, err := verRepo.GetActiveLineage(site.ID)
+		if err != nil {
+			fail(ExitExtFailed, err.Error())
+		}
+
+		entries := []map[string]interface{}{}
+		for _, v := range versions {
+			entries = append(entries, map[string]interface{}{
+				"version": v.Version, "is_active": v.IsActive,
+				"comment": v.Comment, "created_at": v.CreatedAt,
+			})
+		}
+		writeJSON(map[string]interface{}{"version": "1.0", "versions": entries})
+	},
+}
+
+// site version prune
+var siteVersionPruneCmd = &cobra.Command{
+	Use:   "prune <site>",
+	Short: "Delete all orphaned (dead-branch) versions",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		cfg, _ := config.Load()
+		db.Initialize(cfg.DatabasePath)
+		defer db.Close()
+
+		svc := services.NewVersioningService(cfg)
+		count, err := svc.PruneOrphaned(args[0])
+		if err != nil {
+			fail(ExitExtFailed, err.Error())
+		}
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true,
+			"deleted": count,
+			"message": fmt.Sprintf("Pruned %d orphaned versions", count),
+		})
+	},
+}
+
+
 func init() {
 	siteListCmd.Flags().String("target", "", "Remote target (host:port)")
 	siteCreateCmd.Flags().String("name", "", "Site name")
@@ -246,6 +332,10 @@ func init() {
 
 	siteCmd.AddCommand(siteListCmd)
 	siteCmd.AddCommand(siteCreateCmd)
+	siteVersionSnapshotCmd.Flags().StringVar(&siteSnapshotName, "name", "", "Snapshot name (required)")
+	siteVersionCmd.AddCommand(siteVersionSnapshotCmd)
+	siteVersionCmd.AddCommand(siteVersionHistoryCmd)
+	siteVersionCmd.AddCommand(siteVersionPruneCmd)
 	siteVersionCmd.AddCommand(siteVersionCreateCmd)
 	siteVersionCmd.AddCommand(siteVersionListCmd)
 	siteVersionCmd.AddCommand(siteVersionSwitchCmd)
