@@ -262,6 +262,10 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 	<title>` + site.Name + ` &mdash; Editor</title>
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">
 	<script src="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
 	<style>
 		:root{--primary:#2563eb;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#94a3b8;--border:#e2e8f0}
 		*{margin:0;padding:0;box-sizing:border-box}
@@ -447,10 +451,15 @@ function renderForm(panel,sec){
 	panel.innerHTML='<div class="form-grid" id="form-fields"><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" data-source="'+source+'" data-raw="'+(isRaw?'1':'0')+'" onclick="saveForm()">Save Changes</button></div>';
 
 	if(isRaw){
-		// Raw HTML editor: fetch file content directly
+		// Raw HTML editor with CodeMirror (syntax highlighting)
 		fetch('/api/sites/'+slug+'/files/'+source).then(r=>r.json()).then(d=>{
 			const val=(d.content||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-			document.getElementById('form-fields').innerHTML='<div><label>Full HTML</label><textarea id="f__raw" style="min-height:600px;font-family:monospace;font-size:.85rem">'+val+'</textarea></div>';
+			document.getElementById('form-fields').innerHTML='<div><label>Full HTML</label><textarea id="f__raw" style="min-height:600px;font-family:monospace">'+val+'</textarea></div>';
+			setTimeout(function(){
+				if(typeof CodeMirror!=='undefined'){
+					window._rawCM=CodeMirror.fromTextArea(document.getElementById('f__raw'),{mode:'htmlmixed',theme:'default',lineNumbers:true,matchBrackets:true,autoCloseTags:true,viewportMargin:Infinity,tabSize:2});
+				}
+			},200);
 		}).catch(function(){document.getElementById('form-fields').innerHTML='<div class="empty"><p>Failed to load file.</p></div>';});
 		return;
 	}
@@ -477,7 +486,7 @@ function saveForm(){
 	if(!fields.length){toast('Form not loaded yet, try again');return;}
 	btn.textContent='Saving...';
 	var content;
-	if(isRaw){content=document.getElementById('f__raw').value;}
+	if(isRaw){content=window._rawCM?window._rawCM.getValue():document.getElementById('f__raw').value;}
 	else{var obj={};fields.forEach(function(f){obj[f.id.replace('f_','')]=f.value;});content=JSON.stringify(obj,null,'  ');}
 	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:source,content:content})})
 	.then(function(r){return r.json();}).then(function(d){
