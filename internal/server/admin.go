@@ -271,18 +271,17 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 	<style>
 		:root{--primary:#2563eb;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#94a3b8;--border:#e2e8f0}
 		*{margin:0;padding:0;box-sizing:border-box}
-		html,body{height:100%;overflow:hidden}
 		body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
 		.hdr{background:var(--card);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
 		.hdr h1{font-size:1.1rem;font-weight:600}.hdr .site{color:var(--muted);font-weight:400}
 		.hdr a{color:var(--primary);text-decoration:none;font-size:.9rem}
-		.wrap{display:flex;height:calc(100vh - 56px)}
+		.wrap{display:flex;min-height:calc(100vh - 56px)}
 		.sidebar{width:260px;background:var(--card);border-right:1px solid var(--border);padding:1rem;overflow-y:auto;flex-shrink:0}
 		.sidebar h2{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:1rem 0 .5rem}
 		.section-btn{display:block;width:100%;text-align:left;padding:.5rem .75rem;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:.875rem;color:var(--text);font-weight:500;transition:background .15s}
 		.section-btn:hover,.section-btn.active{background:#eff6ff;color:var(--primary)}
-		.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
-		.section-panel{flex:1;display:none;flex-direction:column;overflow:auto;min-height:0}
+		.main{flex:1;display:flex;flex-direction:column}
+		.section-panel{flex:1;display:none;flex-direction:column}
 		.section-panel.active{display:flex}
 		/* Empty */
 		.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);padding:2rem;text-align:center}
@@ -298,7 +297,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 		/* Raw editor */
 		#f__raw_cm .CodeMirror{height:100%!important}
 		/* Form editor */
-		.form-grid{display:grid;gap:1rem;padding:1.5rem;max-width:600px;overflow-y:auto}
+		.form-grid{display:grid;gap:1rem;padding:1.5rem;max-width:600px}
 		.form-grid label{font-size:.85rem;font-weight:500;color:var(--muted);display:block;margin-bottom:.25rem}
 		.form-grid input,.form-grid textarea{width:100%;padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.9rem;outline:none;font-family:inherit}
 		.form-grid textarea{min-height:100px;resize:vertical}
@@ -453,7 +452,7 @@ function renderForm(panel,sec){
 	const fields=sec.fields||[];
 	const source=sec.source||'index.html.data.json';
 	const isRaw=source.endsWith('.html')||source.endsWith('.htm');
-	const fsStyle=isRaw?'style="display:flex;flex-direction:column;flex:1;max-width:none;padding:0"':'style="overflow-y:auto;flex:1;min-height:0"';
+	const fsStyle=isRaw?'style="display:flex;flex-direction:column;flex:1;max-width:none;padding:0"':'';
 	panel.innerHTML='<div class="form-grid" id="form-fields" '+fsStyle+'><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" data-source="'+source+'" data-raw="'+(isRaw?'1':'0')+'" onclick="saveForm()">Save Changes</button></div>';
 
 	if(isRaw){
