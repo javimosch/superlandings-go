@@ -151,19 +151,30 @@ func (s *SiteService) WriteFile(siteSlug, version, filePath, content string) err
 		return fmt.Errorf("site not found: %w", err)
 	}
 
-	// Create full path
 	fullPath := filepath.Join(s.cfg.SitesDir, site.Slug, version, filePath)
-
-	// Create directory if needed
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
-
-	// Write file
 	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
+	return nil
+}
 
+// UploadAsset uploads a file to the shared assets directory for a site
+func (s *SiteService) UploadAsset(siteSlug, assetPath string, data []byte) error {
+	site, err := s.siteRepo.GetBySlug(siteSlug)
+	if err != nil {
+		return fmt.Errorf("site not found: %w", err)
+	}
+
+	fullPath := filepath.Join(s.cfg.SitesDir, site.Slug, "assets", assetPath)
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+	if err := os.WriteFile(fullPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write asset: %w", err)
+	}
 	return nil
 }
 

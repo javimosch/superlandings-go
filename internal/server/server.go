@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/javimosch/superlandings-go/internal/config"
@@ -70,7 +73,6 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try to serve as a site first (with dynamic blocks and sub-paths)
 	// Extract site slug and file path
 	parts := strings.SplitN(path, "/", 2)
 	siteSlug := parts[0]
@@ -79,6 +81,14 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 		filePath = parts[1]
 	}
 
+	// Try to serve as a static asset first (shared across versions)
+	if filePath != "" && isAssetExt(filePath) {
+		if served := s.tryServeAsset(w, r, siteSlug, filePath); served {
+			return
+		}
+	}
+
+	// Try to serve as a site (with dynamic blocks and sub-paths)
 	if content, err := s.siteService.GetActiveVersionContent(siteSlug, filePath); err == nil {
 		w.Header().Set("Content-Type", "text/html")
 		w.Write([]byte(content))
@@ -594,4 +604,40 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		
 		next(w, r)
 	}
+}
+
+// isAssetExt returns true if the file path has a static asset extension.
+func isAssetExt(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg",
+		".webp", ".ico", ".woff", ".woff2", ".ttf", ".eot",
+		".pdf", ".mp4", ".webm", ".json", ".xml":
+		return true
+	}
+	return false
+}
+
+// tryServeAsset attempts to serve a file from the shared assets directory.
+// Returns true if the asset was found and served.
+func (s *Server) tryServeAsset(w http.ResponseWriter, r *http.Request, siteSlug, filePath string) bool {
+	assetPath := filepath.Join(s.cfg.SitesDir, siteSlug, "assets", filePath)
+	if _, err := os.Stat(assetPath); os.IsNotExist(err) {
+		return false
+	}
+
+	// Detect content type from extension
+	ctype := mime.TypeByExtension(filepath.Ext(filePath))
+	if ctype == "" {
+		ctype = "application/octet-stream"
+	}
+
+	data, err := os.ReadFile(assetPath)
+	if err != nil {
+		return false
+	}
+
+	w.Header().Set("Content-Type", ctype)
+	w.Write(data)
+	return true
 }
