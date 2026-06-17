@@ -60,12 +60,6 @@ func Close() error {
 // runMigrations creates the database schema
 func runMigrations() error {
 	migrations := []string{
-		`CREATE TABLE IF NOT EXISTS organizations (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
 		`CREATE TABLE IF NOT EXISTS users (
 			id TEXT PRIMARY KEY,
 			email TEXT UNIQUE NOT NULL,
