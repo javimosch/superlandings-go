@@ -332,7 +332,7 @@ func init() {
 	userListCmd.Flags().String("target", "", "Remote target (host:port)")
 	userCreateCmd.Flags().StringVar(&userEmail, "email", "", "User email")
 	userCreateCmd.Flags().StringVar(&userPassword, "password", "", "User password")
-	userCreateCmd.Flags().StringVar(&userRole, "role", "", "User role (admin, editor, viewer)")
+	userCreateCmd.Flags().StringVar(&userRole, "role", "", "User role (superadmin, admin, editor, viewer)")
 	userCreateCmd.Flags().String("target", "", "Remote target (host:port)")
 	userPasswordCmd.Flags().StringVar(&userPassword, "password", "", "New password")
 	userPasswordCmd.Flags().String("target", "", "Remote target (host:port)")

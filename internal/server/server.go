@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/javimosch/superlandings-go/internal/config"
 	"github.com/javimosch/superlandings-go/internal/db"
@@ -17,9 +19,16 @@ import (
 )
 
 type Server struct {
-	cfg         *config.Config
-	siteService *services.SiteService
-	dnsService  *services.DNSService
+	cfg           *config.Config
+	siteService   *services.SiteService
+	dnsService    *services.DNSService
+	rateLimiter   map[string]*loginAttempt
+	rateLimiterMu sync.Mutex
+}
+
+type loginAttempt struct {
+	Count       int
+	BannedUntil time.Time
 }
 
 func NewServer(cfg *config.Config) *Server {
@@ -27,6 +36,7 @@ func NewServer(cfg *config.Config) *Server {
 		cfg:         cfg,
 		siteService: services.NewSiteService(cfg),
 		dnsService:  services.NewDNSService(cfg),
+		rateLimiter: make(map[string]*loginAttempt),
 	}
 }
 
@@ -822,6 +832,62 @@ func (s *Server) resolveSite(path, host string) (siteSlug, filePath string, from
 func extractHost(host string) string {
 	if idx := strings.LastIndex(host, ":"); idx >= 0 {
 		return host[:idx]
+	}
+	return host
+}
+
+// checkRateLimit returns true if login is allowed, false if banned
+func (s *Server) checkRateLimit(ip string) (bool, time.Duration) {
+	s.rateLimiterMu.Lock()
+	defer s.rateLimiterMu.Unlock()
+	now := time.Now()
+	a, ok := s.rateLimiter[ip]
+	if ok && now.Before(a.BannedUntil) {
+		return false, a.BannedUntil.Sub(now)
+	}
+	return true, 0
+}
+
+// recordLoginFailure increments attempt count, bans if >= 10
+func (s *Server) recordLoginFailure(ip string) {
+	s.rateLimiterMu.Lock()
+	defer s.rateLimiterMu.Unlock()
+	now := time.Now()
+	a, ok := s.rateLimiter[ip]
+	if !ok {
+		s.rateLimiter[ip] = &loginAttempt{Count: 1}
+		return
+	}
+	// Reset if ban has expired
+	if !a.BannedUntil.IsZero() && now.After(a.BannedUntil) {
+		s.rateLimiter[ip] = &loginAttempt{Count: 1}
+		return
+	}
+	a.Count++
+	if a.Count >= 10 {
+		a.BannedUntil = now.Add(1 * time.Hour)
+	}
+}
+
+// resetLoginAttempts clears failed attempts after successful login
+func (s *Server) resetLoginAttempts(ip string) {
+	s.rateLimiterMu.Lock()
+	defer s.rateLimiterMu.Unlock()
+	delete(s.rateLimiter, ip)
+}
+
+// extractIP returns the client IP from request
+func extractIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+	host := r.RemoteAddr
+	if idx := strings.LastIndex(host, ":"); idx >= 0 {
+		host = host[:idx]
 	}
 	return host
 }

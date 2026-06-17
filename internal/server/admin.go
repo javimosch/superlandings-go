@@ -174,21 +174,34 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 
 	// POST: login
 	if r.Method == "POST" {
+		r.ParseForm()
 		email := r.FormValue("email")
 		password := r.FormValue("password")
+
+		// Rate limit check
+		ip := extractIP(r)
+		if ok, remaining := s.checkRateLimit(ip); !ok {
+			mins := int(remaining.Minutes())
+			s.renderDashboardLogin(w, fmt.Sprintf("Too many attempts. Try again in %d minutes.", mins))
+			return
+		}
 
 		userRepo := db.NewUserRepository()
 		valid, err := userRepo.VerifyPassword(email, password)
 		if err != nil || !valid {
+			s.recordLoginFailure(ip)
 			s.renderDashboardLogin(w, "Invalid email or password")
 			return
 		}
 
 		user, err := userRepo.GetByEmail(email)
 		if err != nil {
+			s.recordLoginFailure(ip)
 			s.renderDashboardLogin(w, "User not found")
 			return
 		}
+
+		s.resetLoginAttempts(ip)
 
 		// Issue JWT with empty SiteID for dashboard
 		token, err := createJWT(user.ID, "", 24*time.Hour)
@@ -261,13 +274,23 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 	}
 
 	if r.Method == "POST" {
+		r.ParseForm()
 		email := r.FormValue("email")
 		password := r.FormValue("password")
+
+		// Rate limit check
+		ip := extractIP(r)
+		if ok, _ := s.checkRateLimit(ip); !ok {
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte(`<html><body style="font-family:system-ui;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f5f5f5"><div style="background:#fff;padding:2rem;border-radius:8px;text-align:center"><h2 style="color:#dc3545">Too Many Attempts</h2><p>Try again in 1 hour.</p><a href="/admin/` + site.Slug + `">Back to login</a></div></body></html>`))
+			return
+		}
 
 		// Verify credentials
 		userRepo := db.NewUserRepository()
 		valid, err := userRepo.VerifyPassword(email, password)
 		if err != nil || !valid {
+			s.recordLoginFailure(ip)
 			html := `<!DOCTYPE html>
 <html>
 <head>
@@ -1133,6 +1156,12 @@ func generateID() string {
 
 // userHasSiteAccess checks if a user has access to a site
 func (s *Server) userHasSiteAccess(userID, siteID string) bool {
+	// Superadmin has access to everything
+	var role string
+	db.DB.QueryRow(`SELECT role FROM users WHERE id = ?`, userID).Scan(&role)
+	if role == "superadmin" {
+		return true
+	}
 	var count int
 	err := db.DB.QueryRow(`SELECT COUNT(*) FROM site_users WHERE user_id = ? AND site_id = ?`, userID, siteID).Scan(&count)
 	return err == nil && count > 0
@@ -1219,11 +1248,23 @@ func (s *Server) renderDashboard(w http.ResponseWriter, r *http.Request, userID 
 	userRepo := db.NewUserRepository()
 	user, err := userRepo.GetByID(userID)
 	if err != nil {
-		http.Error(w, "User not found", http.StatusInternalServerError)
+		// User deleted after login — clear cookie and show login
+		http.SetCookie(w, &http.Cookie{Name: "sl_admin_session", Value: "", Path: "/admin", MaxAge: -1, HttpOnly: true})
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
 		return
 	}
 
 	sites, err := userRepo.GetUserSites(user.Email)
+	// Superadmin: show all sites
+	if user.Role == "superadmin" {
+		allSites, _ := db.NewSiteRepository().List()
+		sites = []db.UserSiteInfo{}
+		for _, s := range allSites {
+			sites = append(sites, db.UserSiteInfo{SiteID: s.ID, Slug: s.Slug, Name: s.Name, Role: "superadmin"})
+		}
+	} else {
+		sites, err = userRepo.GetUserSites(user.Email)
+	}
 	if err != nil {
 		http.Error(w, "Failed to list sites", http.StatusInternalServerError)
 		return
@@ -1232,7 +1273,9 @@ func (s *Server) renderDashboard(w http.ResponseWriter, r *http.Request, userID 
 	rows := ""
 	for _, site := range sites {
 		roleBadge := ""
-		if site.Role == "admin" {
+		if site.Role == "superadmin" {
+			roleBadge = `<span style="background:#7c3aed;color:white;padding:2px 8px;border-radius:3px;font-size:.75rem;margin-left:.5rem">superadmin</span>`
+		} else if site.Role == "admin" {
 			roleBadge = `<span style="background:#28a745;color:white;padding:2px 8px;border-radius:3px;font-size:.75rem;margin-left:.5rem">admin</span>`
 		} else {
 			roleBadge = `<span style="background:#6c757d;color:white;padding:2px 8px;border-radius:3px;font-size:.75rem;margin-left:.5rem">viewer</span>`
