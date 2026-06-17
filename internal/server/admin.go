@@ -312,8 +312,8 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 		.btn-primary{background:var(--primary)!important;color:#fff!important}.btn-primary:hover{background:#1d4ed8!important}
 		.btn-success{background:#059669!important;color:#fff!important}.btn-success:hover{background:#047857!important}
 		.btn-sm{padding:.35rem .75rem;font-size:.8rem}
-		.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#065f46;color:#fff;padding:.75rem 1.25rem;border-radius:8px;font-size:.875rem;box-shadow:0 4px 12px rgba(0,0,0,.15);opacity:0;transform:translateY(10px);transition:all .3s;z-index:200}
-		.toast.show{opacity:1;transform:translateY(0)}
+		.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#065f46;color:#fff;padding:.75rem 1.25rem;border-radius:8px;font-size:.875rem;box-shadow:0 4px 12px rgba(0,0,0,.15);opacity:0;transform:translateY(10px);transition:all .3s;z-index:200;pointer-events:none}
+		.toast.show{opacity:1;transform:translateY(0);pointer-events:auto}
 		/* Schema warning */
 		.schema-warn{text-align:center;padding:2rem;color:var(--muted)}
 		.schema-warn code{display:block;margin:1rem;background:#f1f5f9;padding:.5rem;border-radius:4px;font-size:.85rem}
