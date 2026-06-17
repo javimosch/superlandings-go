@@ -1,5 +1,6 @@
 # Binaries
 sl-cli
+sl-cli-*
 *.exe
 *.exe~
 *.dll
@@ -31,3 +32,25 @@ build/
 
 # Sites (content storage)
 sites/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Database files (local SQLite)
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Release archives
+*.tar.gz
+*.zip
