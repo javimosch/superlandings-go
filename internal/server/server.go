@@ -73,14 +73,18 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
 
 	// Query param fallback for local testing: ?site=vdb-landing
-	// Sets a cookie so subsequent link clicks preserve the site context
+	// ?site=clear removes the cookie and shows the landing page list
 	if qs := r.URL.Query().Get("site"); qs != "" {
+		if qs == "clear" {
+			http.SetCookie(w, &http.Cookie{Name: "sl_site", Value: "", Path: "/", MaxAge: -1})
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
 		http.SetCookie(w, &http.Cookie{
 			Name:  "sl_site",
 			Value: qs,
 			Path:  "/",
 		})
-		// Redirect to clean URL (cookie handles subsequent requests)
 		http.Redirect(w, r, "/"+path, http.StatusFound)
 		return
 	}
