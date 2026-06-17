@@ -260,6 +260,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 <html>
 <head>
 	<title>` + site.Name + ` &mdash; Editor</title>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">
 	<script src="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
@@ -455,9 +456,16 @@ function renderForm(panel,sec){
 		fetch('/api/sites/'+slug+'/files/'+source).then(r=>r.json()).then(d=>{
 			var cmDiv='<div style="display:flex;flex-direction:column;flex:1"><label>Full HTML</label><div id="f__raw_cm" style="flex:1;min-height:600px"></div></div>';
 			document.getElementById('form-fields').innerHTML=cmDiv;
-			if(typeof CodeMirror!=='undefined'){
-				window._rawCM=CodeMirror(document.getElementById('f__raw_cm'),{value:d.content||'',mode:'htmlmixed',theme:'default',lineNumbers:true,matchBrackets:true,viewportMargin:Infinity,tabSize:2});
-			}else{setTimeout(function(){window._rawCM=CodeMirror(document.getElementById('f__raw_cm'),{value:d.content||'',mode:'htmlmixed',theme:'default',lineNumbers:true,matchBrackets:true,viewportMargin:Infinity,tabSize:2});},500);}
+			function initCM(){
+				try{
+					if(typeof CodeMirror!=='undefined'){
+						window._rawCM=CodeMirror(document.getElementById('f__raw_cm'),{value:d.content||'',mode:'htmlmixed',theme:'default',lineNumbers:true,matchBrackets:true,viewportMargin:Infinity,tabSize:2});
+						return true;
+					}
+				}catch(e){console.error('CM init error:',e);}
+				return false;
+			}
+			if(!initCM()){setTimeout(function(){if(!initCM()){document.getElementById('f__raw_cm').outerHTML='<textarea id="f__raw_cm" style="min-height:600px;font-family:monospace;width:100%">'+(d.content||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</textarea>';}},600);}
 		}).catch(function(){document.getElementById('form-fields').innerHTML='<div class="empty"><p>Failed to load file.</p></div>';});
 		return;
 	}
