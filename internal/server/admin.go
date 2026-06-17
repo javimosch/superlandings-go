@@ -51,6 +51,24 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Auth sites: let login handler process POST requests
+	if authRequired && r.Method == "POST" {
+		s.handleAdminLogin(w, r, site)
+		return
+	}
+
+	// Auth sites: check for existing JWT session first
+	if authRequired && r.Method == "GET" {
+		sessionCookie, err := r.Cookie("sl_admin_session")
+		if err == nil {
+			claims, err := validateJWT(sessionCookie.Value)
+			if err == nil && claims.SiteID == site.ID {
+				s.handleAdminEditor(w, r, site)
+				return
+			}
+		}
+	}
+
 	// Auth sites: /admin/slug is enough (no token needed, login form is the gate)
 	if authRequired && len(parts) < 2 {
 		s.handleAdminLogin(w, r, site)
