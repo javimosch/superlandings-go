@@ -152,10 +152,12 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 		var k='sl_creds_` + site.Slug + `';
 		var saved=localStorage.getItem(k);
 		if(saved){var c=JSON.parse(saved);document.getElementById('login-email').value=c.e||'';document.getElementById('login-password').value=c.p||'';document.getElementById('remember-me').checked=true;}
+		document.getElementById('remember-me').addEventListener('change',function(){
+			if(!this.checked){localStorage.removeItem(k);document.getElementById('login-email').value='';document.getElementById('login-password').value='';}
+		});
 		document.getElementById('login-form').addEventListener('submit',function(){
 			var cb=document.getElementById('remember-me');
 			if(cb.checked){localStorage.setItem(k,JSON.stringify({e:document.getElementById('login-email').value,p:document.getElementById('login-password').value}));}
-			else{localStorage.removeItem(k);}
 		});
 	})();
 	</script>
