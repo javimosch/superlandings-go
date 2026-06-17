@@ -190,6 +190,14 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 
 // handleAdminEditor serves the editor UI
 func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site *db.Site) {
+	schemaPath := filepath.Join(s.cfg.SitesDir, site.Slug, "admin-schema.json")
+	schemaJSON := `{"sections":[]}`
+	if data, err := os.ReadFile(schemaPath); err == nil {
+		schemaJSON = string(data)
+	}
+
+	escapedSchema := strings.ReplaceAll(schemaJSON, "\\", "\\\\")
+	escapedSchema = strings.ReplaceAll(escapedSchema, "'", "\\'")
 
 	html := `<!DOCTYPE html>
 <html>
@@ -198,45 +206,51 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">
 	<script src="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js"></script>
 	<style>
-		:root{--primary:#2563eb;--accent:#7c3aed;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#94a3b8;--border:#e2e8f0}
+		:root{--primary:#2563eb;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#94a3b8;--border:#e2e8f0}
 		*{margin:0;padding:0;box-sizing:border-box}
-		body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+		body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
 		.hdr{background:var(--card);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
-		.hdr h1{font-size:1.1rem;font-weight:600}
-		.hdr .site{color:var(--muted);font-weight:400}
+		.hdr h1{font-size:1.1rem;font-weight:600}.hdr .site{color:var(--muted);font-weight:400}
 		.hdr a{color:var(--primary);text-decoration:none;font-size:.9rem}
 		.wrap{display:flex;height:calc(100vh - 56px)}
 		.sidebar{width:260px;background:var(--card);border-right:1px solid var(--border);padding:1rem;overflow-y:auto;flex-shrink:0}
 		.sidebar h2{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:1rem 0 .5rem}
-		.post-list{list-style:none}
-		.post-list li{padding:.5rem .75rem;border-radius:6px;cursor:pointer;font-size:.875rem;display:flex;align-items:center;justify-content:space-between;transition:background .15s}
-		.post-list li:hover{background:#f1f5f9}
-		.post-list li .tt{font-weight:500}
-		.post-list li .tag{font-size:.65rem;background:#e0f2fe;color:#0284c7;padding:.15rem .35rem;border-radius:3px}
+		.section-btn{display:block;width:100%;text-align:left;padding:.5rem .75rem;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:.875rem;color:var(--text);font-weight:500;transition:background .15s}
+		.section-btn:hover,.section-btn.active{background:#eff6ff;color:var(--primary)}
 		.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+		.section-panel{flex:1;display:none;flex-direction:column;overflow:hidden}
+		.section-panel.active{display:flex}
+		/* Empty */
 		.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);padding:2rem;text-align:center}
 		.empty h2{font-size:1.25rem;color:var(--text);margin-bottom:.5rem}
 		.empty p{font-size:.9rem;margin-bottom:1.5rem;max-width:400px}
-		.editor-area{flex:1;display:none;flex-direction:column;overflow:hidden}
-		.editor-area.active{display:flex}
+		/* Markdown editor */
 		.editor-toolbar{display:flex;align-items:center;gap:.75rem;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);background:var(--card)}
 		.editor-toolbar input{flex:1;border:none;font-size:1.1rem;font-weight:600;outline:none;background:transparent;color:var(--text)}
 		.EasyMDEContainer{border:none!important;border-radius:0!important;flex:1;display:flex;flex-direction:column}
 		.EasyMDEContainer .editor-toolbar{border:none!important;border-bottom:1px solid var(--border)!important}
 		.EasyMDEContainer .CodeMirror{flex:1!important;border:none!important;border-radius:0!important;font-size:.95rem!important}
+		/* Form editor */
+		.form-grid{display:grid;gap:1rem;padding:1.5rem;max-width:600px}
+		.form-grid label{font-size:.85rem;font-weight:500;color:var(--muted);display:block;margin-bottom:.25rem}
+		.form-grid input,.form-grid textarea{width:100%;padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.9rem;outline:none;font-family:inherit}
+		.form-grid textarea{min-height:100px;resize:vertical}
+		.form-grid input:focus,.form-grid textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+		/* Post list */
+		.post-list{list-style:none}
+		.post-list li{padding:.5rem .75rem;border-radius:6px;cursor:pointer;font-size:.875rem;display:flex;align-items:center;justify-content:space-between;transition:background .15s}
+		.post-list li:hover{background:#f1f5f9}
+		.post-list li .tt{font-weight:500}.post-list li .tag{font-size:.65rem;background:#e0f2fe;color:#0284c7;padding:.15rem .35rem;border-radius:3px}
+		/* Buttons */
 		.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border-radius:6px;font-size:.875rem;font-weight:500;border:none;cursor:pointer;transition:all .15s}
 		.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:#1d4ed8}
 		.btn-success{background:#059669;color:#fff}.btn-success:hover{background:#047857}
-		.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border)}.btn-outline:hover{background:#f1f5f9}
 		.btn-sm{padding:.35rem .75rem;font-size:.8rem}
-		.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center}
-		.modal.active{display:flex}
-		.modal-inner{background:var(--card);padding:1.5rem;border-radius:12px;width:100%;max-width:400px}
-		.modal-inner h2{font-size:1.1rem;margin-bottom:.75rem}
-		.modal-inner input{width:100%;padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.9rem;outline:none}
-		.modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem}
 		.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#065f46;color:#fff;padding:.75rem 1.25rem;border-radius:8px;font-size:.875rem;box-shadow:0 4px 12px rgba(0,0,0,.15);opacity:0;transform:translateY(10px);transition:all .3s;z-index:200}
 		.toast.show{opacity:1;transform:translateY(0)}
+		/* Schema warning */
+		.schema-warn{text-align:center;padding:2rem;color:var(--muted)}
+		.schema-warn code{display:block;margin:1rem;background:#f1f5f9;padding:.5rem;border-radius:4px;font-size:.85rem}
 	</style>
 </head>
 <body>
@@ -244,44 +258,65 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 	<h1><span class="site">` + site.Name + `</span> Editor</h1>
 	<a href="/` + site.Slug + `" target="_blank">View site &rarr;</a>
 </div>
-<div class="wrap">
-	<div class="sidebar">
-		<h2>Blog Posts</h2>
-		<ul class="post-list" id="post-list"></ul>
-		<button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button>
+<div class="wrap" id="app">
+	<div class="sidebar" id="sidebar">
+		<h2>Sections</h2>
+		<div id="section-nav"></div>
 	</div>
 	<div class="main">
-		<div class="empty" id="empty-state">
-			<h2>Welcome</h2>
-			<p>Write a new blog post or select one from the sidebar.</p>
-			<button class="btn btn-success" onclick="newPost()">+ Write Your First Post</button>
-		</div>
-		<div class="editor-area" id="editor-area">
-			<div class="editor-toolbar">
-				<input type="text" id="post-title" placeholder="Post title...">
-				<button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button>
-			</div>
-			<textarea id="markdown-editor"></textarea>
-		</div>
+		<div id="section-content"></div>
 	</div>
 </div>
-<div class="modal" id="modal"><div class="modal-inner">
-	<h2>New Post</h2>
-	<p style="font-size:.875rem;color:var(--muted);margin-bottom:.75rem">Enter a URL slug:</p>
-	<input type="text" id="modal-input" placeholder="my-new-article">
-	<div class="modal-actions">
-		<button class="btn btn-primary" onclick="confirmNewPost()">Create</button>
-		<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-	</div>
-</div></div>
 <div class="toast" id="toast">Saved!</div>
+
+<script id="admin-schema" type="application/json">` + schemaJSON + `</script>
 <script>
-let currentPost=null,easyMDE=null,modalCallback=null;
-const slug="` + site.Slug + `";
+const slug='` + site.Slug + `';
+const schema=JSON.parse(document.getElementById('admin-schema').textContent);
+const sects=schema.sections||[];
+let easyMDE=null,currentPost=null;
+
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
+
+function buildUI(){
+	const nav=document.getElementById('section-nav'),content=document.getElementById('section-content');
+	if(!sects.length){nav.innerHTML='';content.innerHTML='<div class="schema-warn"><h2>No admin schema configured</h2><p>Run <code>sl-cli admin configure '+slug+' --auto-detect</code> to generate one.</p></div>';return;}
+
+	nav.innerHTML=sects.map((s,i)=>'<button class="section-btn'+(i===0?' active':'')+'" onclick="showSection('+i+')">'+s.title+'</button>').join('');
+	content.innerHTML=sects.map((s,i)=>'<div class="section-panel'+(i===0?' active':'')+'" id="panel-'+i+'"></div>').join('');
+	
+	sects.forEach((s,i)=>{
+		const p=document.getElementById('panel-'+i);
+		if(s.type==='markdown') renderMarkdown(p,s);
+		else if(s.type==='form') renderForm(p,s);
+		else p.innerHTML='<div class="empty"><p>Unknown section type: '+s.type+'</p></div>';
+	});
+}
+
+function showSection(i){
+	document.querySelectorAll('.section-btn').forEach(b=>b.classList.remove('active'));
+	document.querySelectorAll('.section-panel').forEach(p=>p.classList.remove('active'));
+	document.querySelectorAll('.section-btn')[i].classList.add('active');
+	document.getElementById('panel-'+i).classList.add('active');
+}
+
+/* === MARKDOWN SECTION === */
+function renderMarkdown(panel,sec){
+	panel.innerHTML='<div id="blog-editor-area"><div class="editor-toolbar"><input type="text" id="post-title" placeholder="Post title..."><button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button></div><textarea id="markdown-editor"></textarea></div><div class="sidebar" style="border-left:1px solid var(--border);border-right:none"><h2>Posts</h2><ul class="post-list" id="post-list"></ul><button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button></div>';
+	loadPosts();
+
+	// Make markdown section a horizontal split
+	const wrap=document.createElement('div');wrap.style.cssText='display:flex;flex:1;overflow:hidden';
+	while(panel.firstChild)wrap.appendChild(panel.firstChild);
+	panel.appendChild(wrap);
+	// Hide editor initially
+	document.getElementById('blog-editor-area').style.display='none';
+}
+
 function loadPosts(){
+	const list=document.getElementById('post-list');if(!list)return;
 	fetch('/api/sites/'+slug+'/files?path=blog').then(r=>r.json()).then(d=>{
-		const list=document.getElementById('post-list');list.innerHTML='';
+		list.innerHTML='';
 		(d.files||[]).forEach(f=>{
 			const n=f.name.replace(/\.md$/,'').replace(/-/g,' ');const lbl=n.charAt(0).toUpperCase()+n.slice(1);
 			const li=document.createElement('li');
@@ -290,35 +325,66 @@ function loadPosts(){
 		});
 	});
 }
-function editPost(path){
-	currentPost=path;
+
+function editPost(path){currentPost=path;
 	fetch('/api/sites/'+slug+'/files/'+path).then(r=>r.json()).then(d=>{
-		document.getElementById('empty-state').style.display='none';document.getElementById('editor-area').classList.add('active');
-		const lines=d.content.split('\n');let title='',body=d.content;
-		for(const l of lines){if(l.startsWith('# ')){title=l.replace(/^# /,'').trim();body=lines.slice(lines.indexOf(l)+1).join('\n').trim();break;}}
+		document.getElementById('blog-editor-area').style.display='block';
+		const lines=d.content.split('\\n');let title='',body=d.content;
+		for(const l of lines){if(l.startsWith('# ')){title=l.replace(/^# /,'').trim();body=lines.slice(lines.indexOf(l)+1).join('\\n').trim();break;}}
 		document.getElementById('post-title').value=title||'Untitled';
-		if(easyMDE){easyMDE.value(body);}else{
+		if(easyMDE)easyMDE.value(body);else{
 			easyMDE=new EasyMDE({element:document.getElementById('markdown-editor'),spellChecker:false,autofocus:true,placeholder:'Write your post...',status:false,toolbar:['bold','italic','heading','|','quote','unordered-list','ordered-list','|','link','image','|','preview','side-by-side','fullscreen']});
 			easyMDE.value(body);
 		}
 	});
 }
+
 function savePost(){
 	const title=document.getElementById('post-title').value.trim();const body=easyMDE?easyMDE.value().trim():'';
 	if(!title&&!body){toast('Nothing to save');return;}
-	const content=(title?'# '+title+'\n\n':'')+body;
+	const content=(title?'# '+title+'\\n\\n':'')+body;
 	if(currentPost){
-		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:currentPost,content:content})})
+		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:currentPost,content})})
 		.then(r=>r.json()).then(d=>{if(d.success){toast('Published!');loadPosts();}});
 	}else{
-		const slugName=title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'untitled';
-		const fp='blog/'+slugName+'.md';
-		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:fp,content:content})})
-		.then(r=>r.json()).then(d=>{if(d.success){currentPost=fp;toast('Published! /'+slug+'/'+slugName);loadPosts();}});
+		const sn=title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'untitled';
+		const fp='blog/'+sn+'.md';
+		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:fp,content})})
+		.then(r=>r.json()).then(d=>{if(d.success){currentPost=fp;toast('Published! /'+slug+'/'+sn);loadPosts();}});
 	}
 }
-function newPost(){if(easyMDE)easyMDE.value('');document.getElementById('post-title').value='';document.getElementById('empty-state').style.display='none';document.getElementById('editor-area').classList.add('active');currentPost=null;setTimeout(()=>document.getElementById('post-title').focus(),100);}
-loadPosts();
+
+function newPost(){if(easyMDE)easyMDE.value('');document.getElementById('post-title').value='';document.getElementById('blog-editor-area').style.display='block';currentPost=null;setTimeout(()=>document.getElementById('post-title').focus(),100);}
+
+/* === FORM SECTION === */
+function renderForm(panel,sec){
+	const fields=sec.fields||[];
+	const source=sec.source||'index.html.data.json';
+	panel.innerHTML='<div class="form-grid" id="form-fields"></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" onclick="saveForm(\''+source+'\')">Save Changes</button></div>';
+	const ff=document.getElementById('form-fields');
+
+	// Load current values
+	fetch('/api/sites/'+slug+'/files/'+source).then(r=>r.json()).then(d=>{
+		let vals={};
+		try{vals=JSON.parse(d.content);}catch(e){}
+		fields.forEach(f=>{
+			const v=vals[f.key]||'';
+			const input=f.type==='textarea'?'<textarea id="f_'+f.key+'">'+v+'</textarea>':
+				'<input type="'+(f.type==='number'?'number':'text')+'" id="f_'+f.key+'" value="'+v+'">';
+			ff.innerHTML+='<div><label>'+f.label+'</label>'+input+'</div>';
+		});
+	});
+}
+
+function saveForm(source){
+	const fields=document.querySelectorAll('#form-fields input, #form-fields textarea');
+	let obj={};
+	fields.forEach(f=>{obj[f.id.replace('f_','')]=f.value;});
+	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:source,content:JSON.stringify(obj,null,'  ')})})
+	.then(r=>r.json()).then(d=>{if(d.success)toast('Saved!');});
+}
+
+buildUI();
 </script>
 </body>
 </html>`

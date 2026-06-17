@@ -3,11 +3,16 @@ package cli
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/javimosch/superlandings-go/internal/config"
 	"github.com/javimosch/superlandings-go/internal/db"
+	"github.com/javimosch/superlandings-go/internal/services"
 	"github.com/spf13/cobra"
 )
 
@@ -182,7 +187,106 @@ var siteAdminRevokeCmd = &cobra.Command{
 	},
 }
 
+// site admin configure
+var siteAdminConfigureCmd = &cobra.Command{
+	Use:   "configure <site> --auto-detect",
+	Short: "Configure admin panel via auto-detection or schema",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := initializeDB(); err != nil {
+			fail(ExitExtFailed, "database init: "+err.Error())
+		}
+		defer db.Close()
+
+		service := services.NewSiteService(cfg)
+		site, err := service.GetBySlug(args[0])
+		if err != nil {
+			fail(ExitNotFound, "site not found")
+		}
+
+		schema := map[string]interface{}{
+			"version": "1.0",
+			"auth":    "none",
+		}
+		sections := []map[string]interface{}{}
+
+		// Auto-detect: check for data files
+		version, _ := service.GetVersionBySiteAndVersion(site.ID, "")
+		versionDir := filepath.Join(cfg.SitesDir, site.Slug)
+		if version != nil {
+			versionDir = filepath.Join(versionDir, version.Version)
+		} else {
+			versionDir = filepath.Join(versionDir, "v1")
+		}
+
+		// Detect .data.json files → form sections
+		if entries, err := os.ReadDir(versionDir); err == nil {
+			for _, e := range entries {
+				if strings.HasSuffix(e.Name(), ".data.json") {
+					dataPath := filepath.Join(versionDir, e.Name())
+					if data, err := os.ReadFile(dataPath); err == nil {
+						var fields map[string]interface{}
+						if json.Unmarshal(data, &fields) == nil {
+							fieldDefs := []map[string]interface{}{}
+							for k, v := range fields {
+								ft := "text"
+								if _, ok := v.(string); ok {
+									if len(v.(string)) > 80 {
+										ft = "textarea"
+									}
+								} else if _, ok := v.(float64); ok {
+									ft = "number"
+								} else if _, ok := v.(bool); ok {
+									ft = "toggle"
+								}
+								fieldDefs = append(fieldDefs, map[string]interface{}{
+									"key": k, "label": strings.Title(strings.ReplaceAll(k, "_", " ")),
+									"type": ft,
+								})
+							}
+							sections = append(sections, map[string]interface{}{
+								"id":     "data",
+								"type":   "form",
+								"title":  "Site Data",
+								"source": e.Name(),
+								"fields": fieldDefs,
+							})
+						}
+					}
+					break // one form section is enough
+				}
+			}
+		}
+
+		// Detect blog/ directory → markdown section
+		blogDir := filepath.Join(cfg.SitesDir, site.Slug, "assets")
+		_ = blogDir
+		blogContentDir := filepath.Join(versionDir, "blog")
+		if _, err := os.Stat(blogContentDir); err == nil {
+			sections = append(sections, map[string]interface{}{
+				"id":     "blog",
+				"type":   "markdown",
+				"title":  "Blog Posts",
+				"source": "blog/",
+			})
+		}
+
+		schema["sections"] = sections
+
+		// Write schema to site directory
+		schemaPath := filepath.Join(cfg.SitesDir, site.Slug, "admin-schema.json")
+		schemaJSON, _ := json.MarshalIndent(schema, "", "  ")
+		if err := os.WriteFile(schemaPath, schemaJSON, 0644); err != nil {
+			fail(ExitInternal, "writing schema: "+err.Error())
+		}
+
+		writeJSON(schema)
+	},
+}
+
 func init() {
+	siteAdminConfigureCmd.Flags().Bool("auto-detect", false, "Auto-detect site structure and generate schema")
+
 	siteAdminCreateCmd.Flags().String("target", "", "Remote target (host:port)")
 	siteAdminViewCmd.Flags().String("target", "", "Remote target (host:port)")
 	siteAdminRotateCmd.Flags().String("target", "", "Remote target (host:port)")
@@ -192,6 +296,7 @@ func init() {
 	siteAdminCmd.AddCommand(siteAdminViewCmd)
 	siteAdminCmd.AddCommand(siteAdminRotateCmd)
 	siteAdminCmd.AddCommand(siteAdminRevokeCmd)
+	siteAdminCmd.AddCommand(siteAdminConfigureCmd)
 }
 
 func handleRemoteSiteAdminCreate(target, siteSlug string) {
