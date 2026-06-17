@@ -294,6 +294,8 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 		.EasyMDEContainer{border:none!important;border-radius:0!important;flex:1;display:flex;flex-direction:column}
 		.EasyMDEContainer .editor-toolbar{border:none!important;border-bottom:1px solid var(--border)!important}
 		.EasyMDEContainer .CodeMirror{flex:1!important;border:none!important;border-radius:0!important;font-size:.95rem!important}
+		/* Raw editor */
+		#f__raw_cm .CodeMirror{height:100%!important}
 		/* Form editor */
 		.form-grid{display:grid;gap:1rem;padding:1.5rem;max-width:600px}
 		.form-grid label{font-size:.85rem;font-weight:500;color:var(--muted);display:block;margin-bottom:.25rem}
@@ -463,6 +465,7 @@ function renderForm(panel,sec){
 				try{
 					if(typeof CodeMirror!=='undefined'){
 						window._rawCM=CodeMirror(document.getElementById('f__raw_cm'),{value:d.content||'',mode:'htmlmixed',theme:'default',lineNumbers:true,matchBrackets:true,viewportMargin:Infinity,tabSize:2});
+						setTimeout(function(){if(window._rawCM)window._rawCM.setSize('100%','100%');},100);
 						return true;
 					}
 				}catch(e){console.error('CM init error:',e);}
