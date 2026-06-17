@@ -69,9 +69,22 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		sessionCookie, err := r.Cookie("sl_admin_session")
 		if err == nil {
 			claims, err := validateJWT(sessionCookie.Value)
-			if err == nil && claims.SiteID == site.ID {
-				s.handleAdminEditor(w, r, site)
-				return
+			if err == nil {
+				// Exact site match
+				if claims.SiteID == site.ID {
+					s.handleAdminEditor(w, r, site)
+					return
+				}
+				// Dashboard JWT: verify user has access to this site
+				if claims.SiteID == "" {
+					if s.userHasSiteAccess(claims.UserID, site.ID) {
+						s.handleAdminEditor(w, r, site)
+						return
+					}
+					// Logged in but no access: show denied
+					s.renderAccessDenied(w, site)
+					return
+				}
 			}
 		}
 	}
@@ -82,8 +95,17 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No-auth sites need a token
+	// No-auth sites need a token ... OR a dashboard JWT with site access
 	if !authRequired && len(parts) < 2 {
+		// Check dashboard JWT
+		if sessionCookie, err := r.Cookie("sl_admin_session"); err == nil {
+			claims, err := validateJWT(sessionCookie.Value)
+			if err == nil && claims.SiteID == "" && s.userHasSiteAccess(claims.UserID, site.ID) {
+				s.handleAdminEditor(w, r, site)
+				return
+			}
+		}
+		// Dashboard JWT but no site access: show access denied
 		http.Error(w, "This site requires an admin token. Use sl-cli site admin create "+siteSlug, http.StatusBadRequest)
 		return
 	}
@@ -1048,6 +1070,39 @@ func generateID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// userHasSiteAccess checks if a user has access to a site
+func (s *Server) userHasSiteAccess(userID, siteID string) bool {
+	var count int
+	err := db.DB.QueryRow(`SELECT COUNT(*) FROM site_users WHERE user_id = ? AND site_id = ?`, userID, siteID).Scan(&count)
+	return err == nil && count > 0
+}
+
+// renderAccessDenied shows access denied with dashboard link
+func (s *Server) renderAccessDenied(w http.ResponseWriter, site *db.Site) {
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+	<title>Access Denied</title>
+	<style>
+		body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f5f5; }
+		.box { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; max-width: 450px; }
+		h2 { color: #dc3545; margin-top: 0; }
+		p { color: #666; margin: 1rem 0; }
+		a { color: #007bff; text-decoration: none; }
+	</style>
+</head>
+<body>
+<div class="box">
+	<h2>Access Denied</h2>
+	<p>You do not have access to <strong>%s</strong>.</p>
+	<p><a href="/admin">Back to Dashboard</a></p>
+</div>
+</body>
+</html>`, site.Name)
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
 }
 
 // renderDashboardLogin shows the global login form
