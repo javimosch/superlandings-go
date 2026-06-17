@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
+	"text/template"
 
 	"github.com/javimosch/superlandings-go/internal/daemon"
 	"github.com/spf13/cobra"
@@ -114,6 +116,33 @@ var backendStatusCmd = &cobra.Command{
 	},
 }
 
+
+var backendInstallCmd = &cobra.Command{
+	Use:   "install",
+	Short: "Install systemd service for boot persistence",
+	Run: func(cmd *cobra.Command, args []string) {
+		port, _ := cmd.Flags().GetInt("port")
+		if err := installSystemdService(port); err != nil {
+			fail(ExitExtFailed, err.Error())
+		}
+		success("Systemd service installed", map[string]interface{}{
+			"port": port, "service": "sl-cli",
+		})
+	},
+}
+
+var backendUninstallCmd = &cobra.Command{
+	Use:   "uninstall",
+	Short: "Remove systemd service",
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := uninstallSystemdService(); err != nil {
+			fail(ExitExtFailed, err.Error())
+		}
+		success("Systemd service uninstalled", nil)
+	},
+}
+
+
 func init() {
 	backendStartCmd.Flags().Int("port", 8080, "Port for HTTP server")
 	backendStartCmd.Flags().Bool("daemon", false, "Run as daemon in background")
@@ -129,6 +158,10 @@ func init() {
 	backendCmd.AddCommand(backendStartCmd)
 	backendCmd.AddCommand(backendStopCmd)
 	backendCmd.AddCommand(backendStatusCmd)
+	backendInstallCmd.Flags().Int("port", 3099, "Port for HTTP server")
+	backendCmd.AddCommand(backendInstallCmd)
+	backendCmd.AddCommand(backendUninstallCmd)
+
 }
 
 func isSystemdAvailable() bool {
@@ -211,4 +244,54 @@ func stopAndRemoveSystemdService() error {
 	exec.Command("systemctl", "disable", "sl-cli").Run()
 	os.Remove("/etc/systemd/system/sl-cli.service")
 	return exec.Command("systemctl", "daemon-reload").Run()
+}
+const serviceTmpl = `[Unit]
+Description=SuperLandings CLI Daemon
+After=network.target
+[Service]
+Type=simple
+User={{.User}}
+WorkingDirectory={{.WorkingDir}}
+ExecStart={{.Executable}} backend start --port={{.Port}}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+[Install]
+WantedBy=multi-user.target
+`
+
+func installSystemdService(port int) error {
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("getting executable path: %w", err)
+	}
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("getting working dir: %w", err)
+	}
+	user := os.Getenv("USER")
+	if user == "" {
+		user = "root"
+	}
+
+	data := struct {
+		User, WorkingDir, Executable string
+		Port                         int
+	}{user, workingDir, execPath, port}
+
+	tmpl, err := template.New("service").Parse(serviceTmpl)
+	if err != nil {
+		return fmt.Errorf("parsing template: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("executing template: %w", err)
+	}
+	return os.WriteFile("/etc/systemd/system/sl-cli.service", buf.Bytes(), 0644)
+}
+
+func uninstallSystemdService() error {
+	return os.Remove("/etc/systemd/system/sl-cli.service")
 }
