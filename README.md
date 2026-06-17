@@ -7,125 +7,114 @@
 <h1 align="center">SuperLandings Go 🚀</h1>
 
 <p align="center">
-  <b>Go port of SuperLandings landing page management system.</b><br>
-  <b>Agent-first, single binary, no dependencies.</b>
+  <b>Agent-first static site manager with versioning, assets, and domain serving.</b><br>
+  <b>Single binary, zero dependencies, JSON-native CLI.</b>
 </p>
 
-> Think: "SuperLandings, but in Go with less moving parts and agent-friendly CLI"
-
-## ⚡ TL;DR
-
-> Single-binary landing page management with versioning, dynamic blocks, Go templates, and SQLite persistence.
+> Single binary landing page management with versioning, dynamic blocks, Go templates,
+> shared assets, domain-aware serving, and SQLite persistence.
 
 ```bash
-# Create a site with versioning
+# Create a site
 sl-cli site create --name "My Site" --slug "my-site"
 sl-cli site version create my-site --version "v1"
+sl-cli site write my-site v1 "index.html" --content '<h1>{{.title}}</h1>'
+sl-cli site write my-site v1 "nav.html" --content '<nav>{{>include "nav.html"}}</nav>'
 
-# Option 1: Simple includes
-sl-cli site write my-site v1 "index.html" --content '{{>include "nav.html"}}<h1>Home</h1>{{>include "footer.html"}}'
+# Upload assets (shared across versions)
+sl-cli site upload my-site "logo.png" --file ./logo.png
+sl-cli site upload my-site "css/style.css" --file ./dist/style.css
 
-# Option 2: Go templates with variables
-sl-cli site write my-site v1 "index.html" --content '<h1>{{.title}}</h1>{{if .showBanner}}<div>{{.bannerText}}</div>{{end}}'
-# Create index.html.data.json: {"title":"My Site","showBanner":true,"bannerText":"Welcome!"}
+# Reference assets in templates
+echo '<img src="{{asset "logo.png"}}" alt="Logo">' | sl-cli site write my-site v1 "index.html" --content "$(cat)"
 
 # Start daemon
 sl-cli backend start --daemon --port 3099
 curl http://localhost:3099/my-site/
 ```
 
-👉 **Less moving parts** — No Docker, no Node.js runtime, no MongoDB
-👉 **Agent-first CLI** — JSON output, semantic exit codes, deterministic behavior
-👉 **Hybrid storage** — SQLite metadata + file system content
-👉 **Two templating options** — Simple includes OR Go's html/template
-👉 **Version control** — File system based with instant rollback
+👉 **Agent-first** — JSON by default, semantic exit codes, versioned output
+👉 **No Docker, no Node, no MongoDB** — compiled Go binary + SQLite
+👉 **Shared assets** — images, CSS, JS stored once, shared across versions
+👉 **{{asset "file"}}** — template helper resolves assets by filename
+👉 **Domain-aware** — serves from Host header, no Traefik path rewriting needed
+👉 **Remote execution** — all commands support `--target <host:port>`
 
 ## Quick Start
 
 ```bash
-# Build
 go build -o sl-cli ./cmd/sl-cli
 
-# Create site
-./sl-cli site create --name "My Site" --slug "my-site"
-./sl-cli site version create my-site --version "v1"
-
-# Add content (includes)
-./sl-cli site write my-site v1 "index.html" --content '{{>include "nav.html"}}<h1>Home</h1>{{>include "footer.html"}}'
-
-# Or use Go templates
-./sl-cli site write my-site v1 "index.html" --content '<h1>{{.title}}</h1>{{range .posts}}<h2>{{.title}}</h2>{{end}}'
-
-# Start daemon
-sudo ./sl-cli backend start --daemon --port 3099
-curl http://localhost:3099/my-site/
+# Create and serve a site
+./sl-cli site create --name "Blog" --slug "blog"
+./sl-cli site version create blog --version "v1"
+./sl-cli site write blog v1 "index.html" --content '<h1>Hello</h1>'
+./sl-cli backend start --daemon --port 3099
+curl http://localhost:3099/blog/
 ```
 
 ## CLI Usage
 
 ```bash
-# Site management
-sl-cli site create --name "Blog" --slug "blog"
-sl-cli site version create blog --version "v1"
-sl-cli site version switch blog v2
+# Sites
+sl-cli site create --name "Site" --slug "site"
+sl-cli site list
+sl-cli site version create site --version "v1"
+sl-cli site version switch site v2
+sl-cli site write site v1 "file.html" --content "<html>..."
 
-# File management
-sl-cli site write blog v1 "index.html" --content "<html>...</html>"
-sl-cli site write blog v1 "nav.html" --content "<nav>...</nav>"
+# Assets (shared across all versions)
+sl-cli site upload site "logo.png" --file ./logo.png
+sl-cli site assets list site
+sl-cli site assets remove site "path/asset.png"
 
-# Daemon management
+# Templates
+# {{>include "nav.html"}}        — recursive include
+# {{>layout "layout.html"}}      — layout wrapper
+# {{.variable}} / {{if}}/{{range}} — Go template
+# {{asset "logo.png"}}           — resolve asset by filename
+
+# DNS & Traefik (via hotify-cli on remote)
+sl-cli site dns setup site --domain site.example.com --ip 1.2.3.4 --traefik
+
+# Remote execution
+sl-cli site list --target dk2
+sl-cli site upload site "img.png" --file ./img.png --target dk2
+
+# Daemon
 sl-cli backend start --daemon --port 3099
 sl-cli backend stop
-sl-cli backend stop --uninstall
+sl-cli backend status
 ```
 
 ## Architecture
 
-### Core Design
-- **Single binary** — No Docker, no runtime dependencies
-- **SQLite database** — Embedded, file-based, zero-config
-- **Hybrid storage** — SQLite for metadata, file system for content
-- **Dynamic blocks** — `{{>include "path"}}` syntax
-- **Go templates** — Native html/template with variables, conditionals, loops
-- **File system versioning** — Sites stored as `sites/{slug}/{version}/`
-- **Agent-first CLI** — JSON output, semantic exit codes
-- **Systemd integration** — Auto-installation for boot persistence
-
 ### Storage
+
 ```
 ~/.superlandings/
-├── db.sql                    # SQLite (metadata)
-├── sites/                    # File system (content)
-│   └── my-site/
-│       ├── v1/
-│       │   ├── index.html
-│       │   ├── index.html.data.json  # Template data
-│       │   └── nav.html
-│       └── v2/
-└── landings/                 # Legacy support
+├── db.sql                    # SQLite (metadata: sites, versions, domains, users)
+├── sites/{slug}/
+│   ├── assets/               # Shared across versions (images, CSS, JS)
+│   │   ├── logo.png
+│   │   ├── css/style.css
+│   │   └── img/photo.jpg
+│   ├── v1/                   # Versioned content
+│   │   ├── index.html
+│   │   ├── index.html.data.json
+│   │   ├── nav.html
+│   │   └── pages/about.html
+│   └── v2/                   # Rollback-ready
+├── sl-cli.pid
+└── sl-cli.log
 ```
 
-### Dynamic Blocks
-```html
-{{>include "nav.html"}}
-<h1>Welcome</h1>
-{{>include "footer.html"}}
-```
-Recursive includes, processed at serve time, no build step.
+### Serving
 
-### Go Templates
-```html
-<h1>{{.title}}</h1>
-{{if .showBanner}}
-  <div>{{.bannerText}}</div>
-{{end}}
-{{range .posts}}
-  <h2>{{.title}}</h2>
-{{end}}
-```
-Data file: `{"title":"My Site","showBanner":true,"bannerText":"Welcome!","posts":[{"title":"Post 1"}]}`
-
-Both approaches can be used together.
+| Mode | URL | Resolution |
+|------|-----|-----------|
+| Path-based | `localhost:3099/slug/path` | Extracts slug from URL path |
+| Domain-based | `test.domain.com/path` | Looks up slug from site_domains via Host header |
 
 ## Tech Stack
 
@@ -135,61 +124,42 @@ Both approaches can be used together.
 | Database | SQLite (modernc.org/sqlite - pure Go) |
 | HTTP | net/http (standard library) |
 | CLI | Cobra |
-| Storage | Hybrid: SQLite (metadata) + File system (content) |
-
-## Build & Install
-
-```bash
-go build -o sl-cli ./cmd/sl-cli
-go test ./...
-
-# Cross-compile
-GOOS=linux GOARCH=amd64 go build -o sl-cli-linux ./cmd/sl-cli
-GOOS=darwin GOARCH=amd64 go build -o sl-cli-macos ./cmd/sl-cli
-GOOS=windows GOARCH=amd64 go build -o sl-cli.exe ./cmd/sl-cli
-```
+| DNS/Traefik | hotify-cli (pluggable) |
 
 ## Status
 
 | Capability | State |
 |------------|-------|
-| Site CRUD operations | ✅ done |
-| Site version management | ✅ done |
-| Dynamic blocks | ✅ done |
-| Go templates | ✅ done |
-| File system versioning | ✅ done |
-| Hybrid storage | ✅ done |
-| Sub-path routing | ✅ done |
-| HTTP server | ✅ done |
-| Daemon management | ✅ done |
-| Systemd auto-installation | ✅ done |
-| Agent-first CLI | ✅ done |
-| Legacy landing support | ✅ done |
-| Traefik integration | ❌ TODO |
-| Cloudflare integration | ❌ TODO |
-| Blog module | ❌ TODO |
-| Organization/user management | ❌ TODO |
+| Site CRUD + versioning | ✅ |
+| Dynamic blocks + Go templates | ✅ |
+| {{asset "file"}} asset resolver | ✅ |
+| Asset upload / list / remove | ✅ |
+| Domain-aware serving (Host header) | ✅ |
+| Agent-first CLI (JSON, semantic codes) | ✅ |
+| Remote execution (--target) | ✅ |
+| Hybrid SQLite + FS storage | ✅ |
+| Daemon + systemd | ✅ |
+| DNS/Traefik (via hotify-cli) | ✅ |
+| Legacy landing support | ✅ |
+| Blog module | 🔜 |
+| Multi-tenancy | 🔜 |
 
-## Comparison to Node.js Version
+## Build & Install
 
-| Version | Runtime | Typical RSS | Startup Time |
-|---------|---------|-------------|--------------|
-| **SuperLandings Go** | Go (compiled) | ~10 MB | ~100ms |
-| SuperLandings (Node.js) | Node.js | ~100-200 MB | ~2-5s |
+```bash
+go build -o sl-cli ./cmd/sl-cli
 
-**Why Go is lighter:**
-- No runtime VM — compiled to native machine code
-- Single binary — no node_modules, no virtualenv
-- Embedded SQLite — no database server process
-- Minimal dependencies — only Go stdlib + Cobra
+# Cross-compile
+GOOS=linux GOARCH=amd64 go build -o sl-cli-linux ./cmd/sl-cli
+GOOS=darwin GOARCH=amd64 go build -o sl-cli-macos ./cmd/sl-cli
+```
 
 ## Links
 
 - **Repository**: https://github.com/javimosch/superlandings-go
-- **Original SuperLandings**: https://github.com/javimosch/superlandings
-- **Issue Tracker**: https://github.com/javimosch/superlandings-go/issues
-- **Vision**: https://github.com/javimosch/superlandings-go/blob/master/docs/vision.md
-- **Roadmap**: https://github.com/javimosch/superlandings-go/blob/master/docs/roadmap.md
+- **Original**: https://github.com/javimosch/superlandings (Node.js)
+- **Vision**: ./docs/vision.md
+- **Roadmap**: ./docs/roadmap.md
 
 ## License
 

@@ -124,14 +124,18 @@ Data: `index.html.data.json`:
 
 **Processing pipeline:** Includes are resolved first, then if a `.data.json` file exists, the result is rendered with `html/template`.
 
+### Domain-Aware Serving
+
+When accessed via a domain (e.g., `test-site.intrane.fr/path`), the daemon looks up the `Host` header in `site_domains`, resolves the site slug, and serves content. No Traefik middleware needed.
+
 ## Architecture Decisions
 
 | Area | Choice |
 |------|--------|
 | Database | SQLite (`modernc.org/sqlite`), file: `~/.superlandings/db.sql` |
-| Storage | Hybrid: SQLite (metadata) + FS (content) at `~/.superlandings/sites/{slug}/{version}/` |
+| Storage | Hybrid: SQLite (metadata) + FS (content) at `~/.superlandings/sites/{slug}/{version}/` + shared `assets/` dir |
 | Version Control | File system based, instant rollback via DB flag |
-| Templates | `{{>include "path"}}` includes + Go `html/template` + `.html.data.json` data files |
+| Templates | `{{>include "path"}}` includes + Go `html/template` + `{{asset "file"}}` resolver |
 
 ## HTTP Server
 
@@ -215,34 +219,25 @@ curl http://localhost:3099/test
 
 ## Gotchas
 
-### Traefik Configuration ⚠️ CRITICAL
-
-**NEVER edit Traefik directly.** Use `sl-cli` → `hotify-cli` → improve hotify-cli at `~/ai/hotify-cli`. Manual edits break idempotency.
-
-**NEVER restart Traefik manually when using hotify-cli.** Traefik has `watch: true` and auto-reloads on config changes. Manual restarts are unnecessary and can cause conflicts.
-
-### Backend API Endpoint Definitions ⚠️ CRITICAL
-
-**Route order matters:** Register `/api/` BEFORE the catch-all `/`. Handlers using `http.StripPrefix("/api", apiMux)` receive paths WITHOUT the `/api/` prefix.
-
+**Route order matters:** Register `/api/` BEFORE the catch-all `/`. StripPrefix handlers receive paths WITHOUT the prefix.
 ```go
 mux.Handle("/api/", http.StripPrefix("/api", apiMux))
-mux.HandleFunc("/", handleLanding)  // Catch-all last
-// Handler: path is "/sites/x", not "/api/sites/x"
+mux.HandleFunc("/", handleLanding)
 ```
 
-**No `defer db.Close()` in server start** — the defer runs when the function returns, closing the DB before any requests arrive. Keep it open for the server lifetime.
+**No `defer db.Close()` in server start** — closes DB before any requests arrive.
+
+**Template functions before Parse()** — Go's `html/template` requires `.Funcs()` before `.Parse()`.
+
+**Assets shared across versions** — stored in `sites/{slug}/assets/`, not duplicated per version.
+
+**Hotify-cli config** — the daemon user must have the same `~/.hotify/config.json` as the infra user.
+
+**Traefik files** — the daemon user needs write access to `/etc/traefik/*.yml` and passwordless sudo for `systemctl restart traefik`.
 
 ### Daemon
-- PID: `~/.superlandings/sl-cli.pid`
-- Log: `~/.superlandings/sl-cli.log`
-- Systemd: `/etc/systemd/system/sl-cli.service`
-- Use `--no-systemd` to skip auto-install
-
-### Architecture Decisions to Revisit
-- SQLite vs PostgreSQL for high-traffic multi-tenant
-- Single binary vs microservices for scaling
-- File system vs S3 for cloud-native storage
+- PID: `~/.superlandings/sl-cli.pid`, Log: `~/.superlandings/sl-cli.log`
+- Systemd: `/etc/systemd/system/sl-cli.service`, use `--no-systemd` to skip
 
 ---
 
