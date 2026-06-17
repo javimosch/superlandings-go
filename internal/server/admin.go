@@ -162,13 +162,15 @@ func (s *Server) handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 
 // handleAdminDashboard shows login or user's site list
 func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
-	// Check for existing JWT session
-	sessionCookie, err := r.Cookie("sl_admin_session")
-	if err == nil {
-		claims, _ := validateJWT(sessionCookie.Value)
-		if claims != nil && claims.SiteID == "" {
-			s.renderDashboard(w, r, claims.UserID)
-			return
+	// GET: check for existing JWT session
+	if r.Method == "GET" {
+		sessionCookie, err := r.Cookie("sl_admin_session")
+		if err == nil {
+			claims, _ := validateJWT(sessionCookie.Value)
+			if claims != nil && claims.SiteID == "" {
+				s.renderDashboard(w, r, claims.UserID)
+				return
+			}
 		}
 	}
 
