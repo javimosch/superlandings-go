@@ -313,10 +313,10 @@ function buildUI(){
 	content.innerHTML=sects.map((s,i)=>'<div class="section-panel'+(i===0?' active':'')+'" id="panel-'+i+'"></div>').join('');
 	
 	sects.forEach((s,i)=>{
-		const p=document.getElementById('panel-'+i);
+		var p=document.getElementById('panel-'+i);
+		if(!p)return;
 		if(s.type==='markdown') renderMarkdown(p,s);
 		else if(s.type==='form') renderForm(p,s);
-		else p.innerHTML='<div class="empty"><p>Unknown section type: '+s.type+'</p></div>';
 	});
 }
 
@@ -385,6 +385,7 @@ function newPost(){if(easyMDE)easyMDE.value('');document.getElementById('post-ti
 
 // === FORM SECTION ===
 function renderForm(panel,sec){
+	if(!panel)return;
 	const fields=sec.fields||[];
 	const source=sec.source||'index.html.data.json';
 	panel.innerHTML='<div class="form-grid" id="form-fields"><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" data-source="'+source+'" onclick="saveForm()">Save Changes</button></div>';
