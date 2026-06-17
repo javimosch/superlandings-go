@@ -468,6 +468,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 	<div style="display:flex;align-items:center;gap:.75rem">
 		<span id="auth-state" style="font-size:.8rem;color:var(--muted)">` + userRole + ` &middot; </span>
 		<a href="javascript:logout()" style="color:var(--muted);text-decoration:none;font-size:.85rem">Logout</a>
+		<a href="/admin" style="color:var(--muted);text-decoration:none;font-size:.85rem">Dashboard</a>
 		<a href="/` + site.Slug + `" target="_blank">View site &rarr;</a>
 	</div>
 </div>
