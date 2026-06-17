@@ -454,8 +454,10 @@ function renderForm(panel,sec){
 
 	if(isRaw){
 		// Raw HTML editor with CodeMirror (syntax highlighting)
+		// Height can be configured via schema: sec.layout.editorHeight (e.g. "90vh")
+		var edH=(sec.layout&&sec.layout.editorHeight)||'calc(100vh - 140px)';
 		fetch('/api/sites/'+slug+'/files/'+source).then(r=>r.json()).then(d=>{
-			var cmDiv='<div style="display:flex;flex-direction:column;flex:1;overflow:hidden"><div style="padding:.75rem 1.5rem;border-bottom:1px solid var(--border);font-size:.85rem;font-weight:500;color:var(--muted);background:var(--card)">Full HTML</div><div id="f__raw_cm" style="flex:1"></div></div>';
+			var cmDiv='<div style="display:flex;flex-direction:column;height:'+edH+';overflow:hidden"><div style="padding:.75rem 1.5rem;border-bottom:1px solid var(--border);font-size:.85rem;font-weight:500;color:var(--muted);background:var(--card);flex-shrink:0">Full HTML</div><div id="f__raw_cm" style="flex:1;min-height:0;overflow:hidden"></div></div>';
 			document.getElementById('form-fields').innerHTML=cmDiv;
 			function initCM(){
 				try{
