@@ -450,12 +450,12 @@ function renderForm(panel,sec){
 	const fields=sec.fields||[];
 	const source=sec.source||'index.html.data.json';
 	const isRaw=source.endsWith('.html')||source.endsWith('.htm');
-	panel.innerHTML='<div class="form-grid" id="form-fields"><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" data-source="'+source+'" data-raw="'+(isRaw?'1':'0')+'" onclick="saveForm()">Save Changes</button></div>';
+	panel.innerHTML='<div class="form-grid" id="form-fields"'+(isRaw?' style="display:flex;flex-direction:column;flex:1;max-width:none;padding:0"':'')+'><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" data-source="'+source+'" data-raw="'+(isRaw?'1':'0')+'" onclick="saveForm()">Save Changes</button></div>';
 
 	if(isRaw){
 		// Raw HTML editor with CodeMirror (syntax highlighting)
 		fetch('/api/sites/'+slug+'/files/'+source).then(r=>r.json()).then(d=>{
-			var cmDiv='<div style="display:flex;flex-direction:column;flex:1"><label>Full HTML</label><div id="f__raw_cm" style="flex:1;min-height:600px"></div></div>';
+			var cmDiv='<div style="display:flex;flex-direction:column;flex:1;overflow:hidden"><div style="padding:.75rem 1.5rem;border-bottom:1px solid var(--border);font-size:.85rem;font-weight:500;color:var(--muted);background:var(--card)">Full HTML</div><div id="f__raw_cm" style="flex:1"></div></div>';
 			document.getElementById('form-fields').innerHTML=cmDiv;
 			function initCM(){
 				try{
