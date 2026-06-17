@@ -363,3 +363,8 @@ func (r *SiteRepository) List() ([]Site, error) {
 
 	return sites, nil
 }
+// DeleteSite removes a site and all related data (cascaded via FK)
+func (r *SiteRepository) DeleteSite(slug string) error {
+	_, err := DB.Exec(`DELETE FROM sites WHERE slug = ?`, slug)
+	return err
+}
