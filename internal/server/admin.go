@@ -271,6 +271,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 	<style>
 		:root{--primary:#2563eb;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#94a3b8;--border:#e2e8f0}
 		*{margin:0;padding:0;box-sizing:border-box}
+		html,body{height:100%;overflow:hidden}
 		body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
 		.hdr{background:var(--card);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
 		.hdr h1{font-size:1.1rem;font-weight:600}.hdr .site{color:var(--muted);font-weight:400}
