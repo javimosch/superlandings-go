@@ -383,32 +383,37 @@ function savePost(){
 
 function newPost(){if(easyMDE)easyMDE.value('');document.getElementById('post-title').value='';document.getElementById('blog-editor-area').style.display='block';currentPost=null;setTimeout(()=>document.getElementById('post-title').focus(),100);}
 
-/* === FORM SECTION === */
+// === FORM SECTION (loaded) ===
 function renderForm(panel,sec){
 	const fields=sec.fields||[];
 	const source=sec.source||'index.html.data.json';
-	panel.innerHTML='<div class="form-grid" id="form-fields"></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" onclick="saveForm(\''+source+'\')">Save Changes</button></div>';
-	const ff=document.getElementById('form-fields');
+	panel.innerHTML='<div class="form-grid" id="form-fields"><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" onclick="saveForm(\''+source+'\')">Save Changes</button></div>';
 
-	// Load current values
 	fetch('/api/sites/'+slug+'/files/'+source).then(r=>r.json()).then(d=>{
 		let vals={};
 		try{vals=JSON.parse(d.content);}catch(e){}
+		const ff=document.getElementById('form-fields');
+		let html='';
 		fields.forEach(f=>{
-			const v=vals[f.key]||'';
-			const input=f.type==='textarea'?'<textarea id="f_'+f.key+'">'+v+'</textarea>':
-				'<input type="'+(f.type==='number'?'number':'text')+'" id="f_'+f.key+'" value="'+v+'">';
-			ff.innerHTML+='<div><label>'+f.label+'</label>'+input+'</div>';
+			const v=(vals[f.key]||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+			if(f.type==='textarea')html+='<div><label>'+f.label+'</label><textarea id="f_'+f.key+'">'+v+'</textarea></div>';
+			else html+='<div><label>'+f.label+'</label><input type="'+(f.type==='number'?'number':'text')+'" id="f_'+f.key+'" value="'+v+'"></div>';
 		});
-	});
+		ff.innerHTML=html;
+	}).catch(e=>{document.getElementById('form-fields').innerHTML='<div class="empty"><p>Failed to load form data.</p></div>';});
 }
 
 function saveForm(source){
 	const fields=document.querySelectorAll('#form-fields input, #form-fields textarea');
+	if(!fields.length){toast('Form not loaded yet, try again');return;}
 	let obj={};
 	fields.forEach(f=>{obj[f.id.replace('f_','')]=f.value;});
+	document.getElementById('form-save-btn').textContent='Saving...';
 	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:source,content:JSON.stringify(obj,null,'  ')})})
-	.then(r=>r.json()).then(d=>{if(d.success)toast('Saved!');});
+	.then(r=>r.json()).then(d=>{
+		if(d.success){toast('Saved!');document.getElementById('form-save-btn').textContent='Save Changes';}
+		else{toast('Error saving');}
+	}).catch(e=>{toast('Network error');document.getElementById('form-save-btn').textContent='Save Changes';});
 }
 
 buildUI();
