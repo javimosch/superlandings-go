@@ -28,3 +28,6 @@ Thumbs.db
 # Build
 dist/
 build/
+
+# Sites (content storage)
+sites/
