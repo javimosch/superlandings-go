@@ -354,6 +354,19 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 
 // handleAdminEditor serves the editor UI
 func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site *db.Site) {
+	// Determine user role from session cookie
+	userRole := "viewer"
+	if sessionCookie, err := r.Cookie("sl_admin_session"); err == nil {
+		claims, err := validateJWT(sessionCookie.Value)
+		if err == nil && claims.UserID != "" {
+			var role string
+			err := db.DB.QueryRow(`SELECT role FROM site_users WHERE user_id = ? AND site_id = ?`, claims.UserID, site.ID).Scan(&role)
+			if err == nil && role != "" {
+				userRole = role
+			}
+		}
+	}
+
 	schemaPath := filepath.Join(s.cfg.SitesDir, site.Slug, "admin-schema.json")
 	schemaJSON := `{"sections":[]}`
 	if data, err := os.ReadFile(schemaPath); err == nil {
@@ -430,7 +443,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 <div class="hdr">
 	<h1><span class="site">` + site.Name + `</span> Editor</h1>
 	<div style="display:flex;align-items:center;gap:.75rem">
-		<span id="auth-state" style="font-size:.8rem;color:var(--muted)"></span>
+		<span id="auth-state" style="font-size:.8rem;color:var(--muted)">` + userRole + ` &middot; </span>
 		<a href="javascript:logout()" style="color:var(--muted);text-decoration:none;font-size:.85rem">Logout</a>
 		<a href="/` + site.Slug + `" target="_blank">View site &rarr;</a>
 	</div>
@@ -449,6 +462,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 <script id="admin-schema" type="application/json">` + schemaJSON + `</script>
 <script>
 const slug='` + site.Slug + `';
+const userRole='` + userRole + `';
 const schema=JSON.parse(document.getElementById('admin-schema').textContent);
 const sects=schema.sections||[];
 let easyMDE=null,currentPost=null;
@@ -480,7 +494,7 @@ function showSection(i){
 
 /* === MARKDOWN SECTION === */
 function renderMarkdown(panel,sec){
-	panel.innerHTML='<div style="display:flex;flex:1;overflow:hidden"><div id="blog-editor-area" style="display:none;flex:1;flex-direction:column;overflow:hidden"><div style="padding:.75rem 1.5rem;background:var(--card);border-bottom:1px solid var(--border)"><input type="text" id="post-title" placeholder="Post title..." style="width:100%;border:none;font-size:1.1rem;font-weight:600;outline:none;background:transparent;color:var(--text);margin-bottom:.5rem"><div style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap"><div style="display:flex;flex-direction:column;gap:.15rem"><small style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">Author</small><input id="post-author" class="meta" placeholder="Name" style="width:150px;border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;font-size:.85rem;outline:none;background:var(--card);color:var(--text)"></div><div style="display:flex;flex-direction:column;gap:.15rem"><small style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">Date</small><input id="post-date" class="meta" placeholder="2026-01-01" style="width:130px;border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;font-size:.85rem;outline:none;background:var(--card);color:var(--text)"></div><div style="display:flex;flex-direction:column;gap:.15rem"><small style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">Read</small><input id="post-time" class="meta" placeholder="4 min" style="width:80px;border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;font-size:.85rem;outline:none;background:var(--card);color:var(--text)"></div><label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;white-space:nowrap"><input type="checkbox" id="post-published" checked> Published</label><button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button><button class="btn btn-outline btn-sm" onclick="deletePost()" style="color:#dc2626">Delete</button></div></div><textarea id="markdown-editor"></textarea></div><div class="sidebar" style="border-left:1px solid var(--border);border-right:none"><h2>Posts</h2><ul class="post-list" id="post-list"></ul><button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button></div></div>';
+	panel.innerHTML='<div style="display:flex;flex:1;overflow:hidden"><div id="blog-editor-area" style="display:none;flex:1;flex-direction:column;overflow:hidden"><div style="padding:.75rem 1.5rem;background:var(--card);border-bottom:1px solid var(--border)"><input type="text" id="post-title" placeholder="Post title..." style="width:100%;border:none;font-size:1.1rem;font-weight:600;outline:none;background:transparent;color:var(--text);margin-bottom:.5rem"><div style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap"><div style="display:flex;flex-direction:column;gap:.15rem"><small style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">Author</small><input id="post-author" class="meta" placeholder="Name" style="width:150px;border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;font-size:.85rem;outline:none;background:var(--card);color:var(--text)"></div><div style="display:flex;flex-direction:column;gap:.15rem"><small style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">Date</small><input id="post-date" class="meta" placeholder="2026-01-01" style="width:130px;border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;font-size:.85rem;outline:none;background:var(--card);color:var(--text)"></div><div style="display:flex;flex-direction:column;gap:.15rem"><small style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">Read</small><input id="post-time" class="meta" placeholder="4 min" style="width:80px;border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;font-size:.85rem;outline:none;background:var(--card);color:var(--text)"></div><label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;white-space:nowrap"><input type="checkbox" id="post-published" checked> Published</label>'+(userRole!=='viewer'?'<button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button>':'<span style="font-size:.8rem;color:var(--muted)">Read-only</span>')+''+(userRole==='admin'?'<button class="btn btn-outline btn-sm" onclick="deletePost()" style="color:#dc2626">Delete</button>':'')+'</div></div><textarea id="markdown-editor"></textarea></div><div class="sidebar" style="border-left:1px solid var(--border);border-right:none"><h2>Posts</h2><ul class="post-list" id="post-list"></ul>'+(userRole!=='viewer'?'<button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button>':'')+'</div></div>';
 	loadPosts();
 }
 
@@ -525,7 +539,7 @@ function editPost(path){currentPost=path;
 	});
 }
 
-function savePost(){
+function savePost(){if(userRole==="viewer"){toast("Viewers cannot save");return;}
 	var title=document.getElementById('post-title').value.trim();
 	var body=easyMDE?easyMDE.value().trim():'';
 	if(!title&&!body){toast('Nothing to save');return;}
@@ -543,7 +557,7 @@ function savePost(){
 	});
 }
 
-function deletePost(){
+function deletePost(){if(userRole!=="admin"){toast("Only admins can delete");return;}
 	if(!currentPost){toast('No post selected');return;}
 	if(!confirm('Delete this post permanently?'))return;
 	var meta=currentPost+'.data.json';
@@ -561,7 +575,7 @@ function renderForm(panel,sec){
 	const source=sec.source||'index.html.data.json';
 	const isRaw=source.endsWith('.html')||source.endsWith('.htm');
 	const fsStyle=isRaw?'style="display:flex;flex-direction:column;flex:1;max-width:none;padding:0"':'';
-	panel.innerHTML='<div class="form-grid" id="form-fields" '+fsStyle+'><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" data-source="'+source+'" data-raw="'+(isRaw?'1':'0')+'" onclick="saveForm()">Save Changes</button></div>';
+	panel.innerHTML='<div class="form-grid" id="form-fields" '+fsStyle+'><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span>'+(userRole!=='viewer'?'<button class="btn btn-primary btn-sm" id="form-save-btn" data-source="'+source+'" data-raw="'+(isRaw?'1':'0')+'" onclick="saveForm()">Save Changes</button>':'<span style="font-size:.8rem;color:var(--muted)">Read-only mode</span>')+'</div>';
 
 	if(isRaw){
 		// Raw HTML editor with CodeMirror (syntax highlighting)
@@ -599,7 +613,7 @@ function renderForm(panel,sec){
 	}).catch(function(){document.getElementById('form-fields').innerHTML='<div class="empty"><p>Failed to load form data.</p></div>';});
 }
 
-function saveForm(){
+function saveForm(){if(userRole==="viewer"){toast("Viewers cannot save");return;}
 	var btn=document.getElementById('form-save-btn');
 	var source=btn.getAttribute('data-source');
 	var isRaw=btn.getAttribute('data-raw')==='1';
@@ -657,7 +671,7 @@ function renderSubmissions(panel,sec){
 		});
 	};
 	window.closeDetail=function(){document.getElementById('subs-detail').style.display='none';};
-	window.deleteSubmission=function(id){
+	window.deleteSubmission=function(id){if(userRole!=="admin"){toast("Only admins can delete");return;}
 		if(!confirm('Delete this submission?'))return;
 		fetch('/api/sites/'+slug+'/forms/'+fkey+'/submissions/'+id,{method:'DELETE'}).then(function(){loadSubmissions(fkey);toast('Deleted');});
 	};
