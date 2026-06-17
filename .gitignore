@@ -1,6 +1,7 @@
 # Binaries
 sl-cli
-sl-cli-*
+/sl-cli-*
+sl-cli-*.exe
 *.exe
 *.exe~
 *.dll
