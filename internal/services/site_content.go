@@ -123,6 +123,24 @@ func (s *SiteService) processContent(content, filePath, versionDir, siteSlug, si
 		}
 	}
 
+	// Auto-discover form actions from admin schema
+	schemaPath := filepath.Join(s.cfg.SitesDir, siteSlug, "admin-schema.json")
+	if schemaData, err := os.ReadFile(schemaPath); err == nil {
+		var schema struct {
+			Sections []struct {
+				Type   string `json:"type"`
+				Source string `json:"source"`
+			} `json:"sections"`
+		}
+		if json.Unmarshal(schemaData, &schema) == nil {
+			for _, sec := range schema.Sections {
+				if sec.Type == "submissions" && sec.Source != "" {
+					data["form_action_"+sec.Source] = "/api/sites/" + siteSlug + "/forms/" + sec.Source + "/submit"
+				}
+			}
+		}
+	}
+
 	// Add root path variable
 	data["root"] = "/" + siteSlug
 

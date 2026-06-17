@@ -104,3 +104,14 @@ type SiteAdminToken struct {
 	ExpiresAt *time.Time `json:"expiresAt,omitempty" db:"expires_at"`
 	IsActive  bool       `json:"isActive" db:"is_active"`
 }
+
+// FormSubmission represents a submitted form entry
+type FormSubmission struct {
+	ID        string    `json:"id"`
+	SiteID    string    `json:"siteId"`
+	FormKey   string    `json:"formKey"`
+	FormName  string    `json:"formName"`
+	Data      string    `json:"data"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"createdAt"`
+}

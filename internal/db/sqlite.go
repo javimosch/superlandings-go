@@ -162,6 +162,18 @@ func runMigrations() error {
 		`CREATE INDEX IF NOT EXISTS idx_site_users_user_id ON site_users(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_site_admin_tokens_site_id ON site_admin_tokens(site_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_site_admin_tokens_token ON site_admin_tokens(token)`,
+		`CREATE TABLE IF NOT EXISTS form_submissions (
+			id TEXT PRIMARY KEY,
+			site_id TEXT NOT NULL,
+			form_key TEXT NOT NULL,
+			form_name TEXT DEFAULT '',
+			data TEXT NOT NULL,
+			status TEXT DEFAULT 'new',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_form_submissions_site ON form_submissions(site_id, form_key)`,
+		`CREATE INDEX IF NOT EXISTS idx_form_submissions_status ON form_submissions(status)`,
 	}
 
 	for _, migration := range migrations {

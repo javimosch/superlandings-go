@@ -266,6 +266,8 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 		s.handleAdminAPIFiles(w, r, slug)
 	case "admin":
 		s.handleAPISiteAdmin(w, r)
+	case "forms":
+		s.handleAPISiteForms(w, r, slug, parts[2:])
 	default:
 		s.handleAPISiteDetails(w, r, slug)
 	}
@@ -680,6 +682,12 @@ func (s *Server) handleAPISiteAssets(w http.ResponseWriter, r *http.Request, slu
 // authMiddleware validates Bearer token authentication
 func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Public form submissions don't require auth
+		if r.Method == "POST" && strings.Contains(r.URL.Path, "/forms/") && strings.HasSuffix(r.URL.Path, "/submit") {
+			next(w, r)
+			return
+		}
+
 		// If no auth token configured, allow all requests
 		if s.cfg.AuthToken == "" {
 			next(w, r)

@@ -360,6 +360,7 @@ function buildUI(){
 		if(!p)return;
 		if(s.type==='markdown') renderMarkdown(p,s);
 		else if(s.type==='form') renderForm(p,s);
+		else if(s.type==='submissions') renderSubmissions(p,s);
 	});
 }
 
@@ -506,6 +507,54 @@ function saveForm(){
 		if(d.success){toast('Saved!');btn.textContent='Save Changes';}
 		else{toast('Error saving');btn.textContent='Save Changes';}
 	}).catch(function(){toast('Network error');btn.textContent='Save Changes';});
+}
+
+function renderSubmissions(panel,sec){
+	if(!panel)return;
+	var fkey=sec.source||'contact';
+	panel.innerHTML='<div style="display:flex;flex-direction:column;flex:1;overflow:hidden"><div style="display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);background:var(--card)"><span style="font-weight:600;font-size:.95rem">'+fkey+' <span id="subs-count" style="color:var(--muted);font-weight:400"></span></span><div style="display:flex;gap:.5rem"><button class="btn btn-outline btn-sm" onclick="exportCSV()">CSV</button><button class="btn btn-outline btn-sm" onclick="exportJSON()">JSON</button></div></div><div id="subs-table-wrap" style="flex:1;overflow-y:auto;padding:1rem"><p style="color:var(--muted)">Loading submissions...</p></div><div id="subs-detail" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:100;justify-content:center;align-items:center"><div style="background:var(--card);border-radius:12px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;padding:2rem;box-shadow:0 8px 30px rgba(0,0,0,.2)"><h3 id="subs-detail-title" style="margin-bottom:1rem">Submission</h3><div id="subs-detail-body"></div><div style="display:flex;gap:.5rem;margin-top:1.5rem"><button class="btn btn-sm" onclick="closeDetail()">Close</button><button class="btn btn-outline btn-sm" style="color:#dc2626" id="subs-delete-btn">Delete</button></div></div></div></div>';
+	loadSubmissions(fkey);
+
+	window._subsFkey=fkey;
+	window.exportCSV=function(){window.open('/api/sites/'+slug+'/forms/'+fkey+'/submissions/export','_blank');};
+	window.exportJSON=function(){fetch('/api/sites/'+slug+'/forms/'+fkey+'/submissions').then(r=>r.json()).then(d=>{var blob=new Blob([JSON.stringify(d.submissions,null,2)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fkey+'-submissions.json';a.click();});};
+	window.loadSubmissions=function(k){
+		fetch('/api/sites/'+slug+'/forms/'+k+'/submissions').then(r=>r.json()).then(function(d){
+			var subs=d.submissions||[];
+			document.getElementById('subs-count').textContent='('+(d.total||subs.length)+')';
+			var h='<table style="width:100%;border-collapse:collapse"><thead><tr style="text-align:left;border-bottom:2px solid var(--border)"><th style="padding:.5rem">Date</th><th style="padding:.5rem">Status</th><th style="padding:.5rem">Preview</th><th style="padding:.5rem"></th></tr></thead><tbody>';
+			subs.forEach(function(s,i){
+				var d2=JSON.parse(s.data||'{}');
+				var prev=Object.values(d2).slice(0,2).join(' \\u2022 ');
+				if(!prev)prev=s.id.slice(0,8);
+				var sc=s.status==='new'?'#2563eb':s.status==='reviewed'?'#16a34a':'#94a3b8';
+				h+='<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="viewSubmission(\''+s.id+'\')"><td style="padding:.5rem;font-size:.85rem;color:var(--muted)">'+new Date(s.createdAt).toLocaleDateString()+'</td><td style="padding:.5rem"><span style="display:inline-block;padding:.15rem .5rem;border-radius:10px;font-size:.75rem;background:'+sc+'20;color:'+sc+'">'+s.status+'</span></td><td style="padding:.5rem;font-size:.85rem">'+prev.replace(/</g,'&lt;')+'</td><td style="padding:.5rem;text-align:right"><button class="btn btn-outline btn-sm" style="font-size:.7rem;color:#dc2626" onclick="event.stopPropagation();deleteSubmission(\''+s.id+'\')">Del</button></td></tr>';
+			});
+			h+='</tbody></table>';
+			if(!subs.length)h='<p style="color:var(--muted);text-align:center;padding:2rem">No submissions yet.</p>';
+			document.getElementById('subs-table-wrap').innerHTML=h;
+		});
+	};
+	window.viewSubmission=function(id){
+		fetch('/api/sites/'+slug+'/forms/'+fkey+'/submissions/'+id).then(r=>r.json()).then(function(s){
+			var d2=JSON.parse(s.data||'{}');
+			var body='<table style="width:100%">';
+			for(var k in d2){
+				if(k.indexOf('_')===0)continue;
+				body+='<tr><td style="font-weight:600;padding:.5rem .75rem .5rem 0;vertical-align:top;color:var(--muted);font-size:.85rem;white-space:nowrap">'+k.replace(/_/g,' ')+'</td><td style="padding:.5rem 0;font-size:.9rem">'+String(d2[k]).replace(/</g,'&lt;').replace(/\\n/g,'<br>')+'</td></tr>';
+			}
+			body+='</table>';
+			document.getElementById('subs-detail-title').textContent='Submission '+new Date(s.createdAt).toLocaleString();
+			document.getElementById('subs-detail-body').innerHTML=body;
+			document.getElementById('subs-delete-btn').onclick=function(){deleteSubmission(id);closeDetail();};
+			document.getElementById('subs-detail').style.display='flex';
+		});
+	};
+	window.closeDetail=function(){document.getElementById('subs-detail').style.display='none';};
+	window.deleteSubmission=function(id){
+		if(!confirm('Delete this submission?'))return;
+		fetch('/api/sites/'+slug+'/forms/'+fkey+'/submissions/'+id,{method:'DELETE'}).then(function(){loadSubmissions(fkey);toast('Deleted');});
+	};
 }
 
 function checkAuth(){var c=document.cookie.match('(^|; )sl_admin_session=([^;]*)');if(c){document.getElementById('auth-state').textContent='Logged in';}}
