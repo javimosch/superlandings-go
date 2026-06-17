@@ -174,7 +174,14 @@ func (s *SiteService) SwitchVersion(siteSlug, version string) error {
 	// Set as active
 	return s.versionRepo.SetActiveVersion(site.ID, targetVersion)
 }
-
-
-
-	
+func isValidSlug(slug string) bool {
+	if len(slug) == 0 {
+		return false
+	}
+	for _, c := range slug {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
+			return false
+		}
+	}
+	return true
+}

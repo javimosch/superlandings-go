@@ -4,39 +4,6 @@ import (
 	"time"
 )
 
-// Landing represents a landing page
-type Landing struct {
-	ID             string    `json:"id" db:"id"`
-	Name           string    `json:"name" db:"name"`
-	Slug           string    `json:"slug" db:"slug"`
-	Type           string    `json:"type" db:"type"` // html, ejs, virtual, static, traefik-config
-	OrganizationID string    `json:"organizationId,omitempty" db:"organization_id"`
-	Content        string    `json:"content,omitempty" db:"content"` // for html type
-	Files          []File    `json:"files,omitempty" db:"-"`         // for virtual type, stored separately
-	Domains        []Domain  `json:"domains,omitempty" db:"-"`       // stored separately
-	Config         Config    `json:"config,omitempty" db:"config"`
-	CreatedAt      time.Time `json:"createdAt" db:"created_at"`
-	UpdatedAt      time.Time `json:"updatedAt" db:"updated_at"`
-}
-
-// File represents a file in a virtual landing
-type File struct {
-	Path    string `json:"path" db:"path"`
-	Content string `json:"content" db:"content"`
-}
-
-// Domain represents a domain configuration
-type Domain struct {
-	Domain     string `json:"domain" db:"domain"`
-	Traefik    bool   `json:"traefik" db:"traefik"`
-	Cloudflare bool   `json:"cloudflare" db:"cloudflare"`
-}
-
-// Config represents landing configuration
-type Config struct {
-	SSLEnabled bool `json:"sslEnabled" db:"ssl_enabled"`
-}
-
 // Organization represents an organization
 type Organization struct {
 	ID        string    `json:"id" db:"id"`

@@ -17,18 +17,16 @@ import (
 )
 
 type Server struct {
-	cfg            *config.Config
-	landingService *services.LandingService
-	siteService    *services.SiteService
-	dnsService     *services.DNSService
+	cfg         *config.Config
+	siteService *services.SiteService
+	dnsService  *services.DNSService
 }
 
 func NewServer(cfg *config.Config) *Server {
 	return &Server{
-		cfg:            cfg,
-		landingService: services.NewLandingService(cfg),
-		siteService:    services.NewSiteService(cfg),
-		dnsService:     services.NewDNSService(cfg),
+		cfg:         cfg,
+		siteService: services.NewSiteService(cfg),
+		dnsService:  services.NewDNSService(cfg),
 	}
 }
 
@@ -143,15 +141,8 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fall back to landing (path-based routing only)
-	content, contentType, err := s.landingService.GetLandingContent(path)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	w.Header().Set("Content-Type", contentType)
-	w.Write([]byte(content))
+	// Not a known site or domain
+	http.NotFound(w, r)
 }
 
 // handleRoot serves the root page
@@ -161,8 +152,6 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to list sites", http.StatusInternalServerError)
 		return
 	}
-
-	landings, _ := s.landingService.List()
 
 	html := `<!DOCTYPE html><html><head><title>SuperLandings</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 		body{font-family:system-ui,sans-serif;background:#0a0a0f;color:#e4e4ec;max-width:720px;margin:3rem auto;padding:0 1.5rem}
@@ -178,18 +167,14 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 		.root-btn:hover{background:#a29bfe}
 	</style></head><body>
 	<h1>Super<span>Landings</span></h1>
-	<p class="sub">` + fmt.Sprintf("%d sites", len(sites)+len(landings)) + ` &middot; <code style="font-size:.8rem">sl-cli site create</code> to add</p>
+	<p class="sub">` + fmt.Sprintf("%d sites", len(sites)) + ` &middot; <code style="font-size:.8rem">sl-cli site create</code> to add</p>
 	<div class="section"><h2>Sites</h2>`
 
 	for _, site := range sites {
 		html += fmt.Sprintf(`<div class="row"><a href="/%s">%s</a><button class="root-btn" onclick="navigator.clipboard.writeText('%s/?site=%s').then(()=>this.textContent='Copied!')">Open at root</button></div>`,
 			site.Slug, site.Name, r.Host, site.Slug)
 	}
-	for _, l := range landings {
-		html += fmt.Sprintf(`<div class="row"><a href="/%s">%s</a><button class="root-btn" onclick="navigator.clipboard.writeText('%s/?site=%s').then(()=>this.textContent='Copied!')">Open at root</button></div>`,
-			l.Slug, l.Name, r.Host, l.Slug)
-	}
-	if len(sites)+len(landings) == 0 {
+	if len(sites) == 0 {
 		html += `<p style="color:#7c7c94">No sites yet. Create one: <code>sl-cli site create --name "My Site" --slug "my-site"</code></p>`
 	}
 

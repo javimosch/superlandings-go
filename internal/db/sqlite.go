@@ -60,33 +60,6 @@ func Close() error {
 // runMigrations creates the database schema
 func runMigrations() error {
 	migrations := []string{
-		`CREATE TABLE IF NOT EXISTS landings (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			slug TEXT UNIQUE NOT NULL,
-			type TEXT NOT NULL,
-			organization_id TEXT,
-			content TEXT,
-			config TEXT,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE TABLE IF NOT EXISTS landing_files (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			landing_id TEXT NOT NULL,
-			path TEXT NOT NULL,
-			content TEXT,
-			FOREIGN KEY (landing_id) REFERENCES landings(id) ON DELETE CASCADE
-		)`,
-		`CREATE TABLE IF NOT EXISTS landing_domains (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			landing_id TEXT NOT NULL,
-			domain TEXT NOT NULL,
-			traefik BOOLEAN DEFAULT 0,
-			cloudflare BOOLEAN DEFAULT 0,
-			FOREIGN KEY (landing_id) REFERENCES landings(id) ON DELETE CASCADE,
-			UNIQUE(landing_id, domain)
-		)`,
 		`CREATE TABLE IF NOT EXISTS organizations (
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
@@ -130,11 +103,6 @@ func runMigrations() error {
 			FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
 			UNIQUE(site_id, domain)
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_landings_slug ON landings(slug)`,
-		`CREATE INDEX IF NOT EXISTS idx_landings_type ON landings(type)`,
-		`CREATE INDEX IF NOT EXISTS idx_landings_org ON landings(organization_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_landing_files_landing_id ON landing_files(landing_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_landing_domains_landing_id ON landing_domains(landing_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_sites_slug ON sites(slug)`,
 		`CREATE INDEX IF NOT EXISTS idx_site_versions_site_id ON site_versions(site_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_site_versions_active ON site_versions(is_active)`,
