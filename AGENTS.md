@@ -219,6 +219,8 @@ curl http://localhost:3099/test
 
 **NEVER edit Traefik directly.** Use `sl-cli` → `hotify-cli` → improve hotify-cli at `~/ai/hotify-cli`. Manual edits break idempotency.
 
+**NEVER restart Traefik manually when using hotify-cli.** Traefik has `watch: true` and auto-reloads on config changes. Manual restarts are unnecessary and can cause conflicts.
+
 ### Backend API Endpoint Definitions ⚠️ CRITICAL
 
 **Route order matters:** Register `/api/` BEFORE the catch-all `/`. Handlers using `http.StripPrefix("/api", apiMux)` receive paths WITHOUT the `/api/` prefix.
