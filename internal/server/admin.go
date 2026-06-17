@@ -98,14 +98,18 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	// No-auth sites need a token ... OR a dashboard JWT with site access
 	if !authRequired && len(parts) < 2 {
 		// Check dashboard JWT
-		if sessionCookie, err := r.Cookie("sl_admin_session"); err == nil {
+		sessionCookie, err := r.Cookie("sl_admin_session")
+		if err == nil {
 			claims, err := validateJWT(sessionCookie.Value)
-			if err == nil && claims.SiteID == "" && s.userHasSiteAccess(claims.UserID, site.ID) {
-				s.handleAdminEditor(w, r, site)
+			if err == nil && claims.SiteID == "" {
+				if s.userHasSiteAccess(claims.UserID, site.ID) {
+					s.handleAdminEditor(w, r, site)
+					return
+				}
+				s.renderAccessDenied(w, site)
 				return
 			}
 		}
-		// Dashboard JWT but no site access: show access denied
 		http.Error(w, "This site requires an admin token. Use sl-cli site admin create "+siteSlug, http.StatusBadRequest)
 		return
 	}

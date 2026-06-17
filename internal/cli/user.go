@@ -168,7 +168,7 @@ var userGrantCmd = &cobra.Command{
 
 		siteSlug, email := args[0], args[1]
 		if userRole == "" {
-			userRole = "viewer"
+			userRole = "admin"
 		}
 
 		cfg, err := config.Load()
@@ -207,6 +207,47 @@ var userCreateRemote func(string, *cobra.Command)
 var userPasswordRemote func(string, []string, *cobra.Command)
 var userGrantRemote func(string, []string, *cobra.Command)
 
+
+// user revoke
+var userRevokeCmd = &cobra.Command{
+	Use:   "revoke <site> <email>",
+	Short: "Revoke a user's access to a site",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		siteSlug, email := args[0], args[1]
+
+		cfg, err := config.Load()
+		if err != nil {
+			fail(ExitExtFailed, err.Error())
+		}
+		if err := db.Initialize(cfg.DatabasePath); err != nil {
+			fail(ExitExtFailed, "database init: "+err.Error())
+		}
+		defer db.Close()
+
+		siteRepo := db.NewSiteRepository()
+		site, err := siteRepo.GetBySlug(siteSlug)
+		if err != nil {
+			fail(ExitNotFound, "site not found")
+		}
+
+		userRepo := db.NewUserRepository()
+		user, err := userRepo.GetByEmail(email)
+		if err != nil {
+			fail(ExitNotFound, "user not found")
+		}
+
+		if err := userRepo.RevokeSiteAccess(site.ID, user.ID); err != nil {
+			fail(ExitConflict, err.Error())
+		}
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true,
+			"message": fmt.Sprintf("Revoked %s access to %s", email, siteSlug),
+		})
+	},
+}
+
+
 func init() {
 	userListCmd.Flags().String("target", "", "Remote target (host:port)")
 	userCreateCmd.Flags().StringVar(&userEmail, "email", "", "User email")
@@ -215,7 +256,7 @@ func init() {
 	userCreateCmd.Flags().String("target", "", "Remote target (host:port)")
 	userPasswordCmd.Flags().StringVar(&userPassword, "password", "", "New password")
 	userPasswordCmd.Flags().String("target", "", "Remote target (host:port)")
-	userGrantCmd.Flags().StringVar(&userRole, "role", "", "Role to grant (editor, viewer)")
+	userGrantCmd.Flags().StringVar(&userRole, "role", "admin", "Role to grant (admin, editor, viewer)")
 	userGrantCmd.Flags().String("target", "", "Remote target (host:port)")
 
 	userCmd.AddCommand(userListCmd)
@@ -223,6 +264,7 @@ func init() {
 	userCmd.AddCommand(userPasswordCmd)
 	userCmd.AddCommand(userResetPasswordCmd)
 	userCmd.AddCommand(userGrantCmd)
+	userCmd.AddCommand(userRevokeCmd)
 }
 
 // remote handlers

@@ -131,7 +131,7 @@ func (r *UserRepository) VerifyPassword(email string, password string) (bool, er
 
 // GrantSiteAccess grants a user access to a site
 func (r *UserRepository) GrantSiteAccess(siteID, userID, role string) error {
-	query := `INSERT INTO site_users (id, site_id, user_id, role, created_at)
+	query := `INSERT OR REPLACE INTO site_users (id, site_id, user_id, role, created_at)
 			  VALUES (?, ?, ?, ?, ?)`
 
 	now := time.Now()
