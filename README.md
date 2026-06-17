@@ -33,13 +33,13 @@ sl-cli backend start --daemon --port 3099
 curl http://localhost:3099/my-site/
 ```
 
-👉 **Agent-first** — JSON by default, semantic exit codes, versioned output
-👉 **No Docker, no Node, no MongoDB** — compiled Go binary + SQLite
-👉 **Shared assets** — images, CSS, JS stored once, shared across versions
-👉 **{{asset "file"}}** — template helper resolves assets by filename
-👉 **Admin panel** — schema-driven UI, blog editor (EasyMDE), raw HTML (CodeMirror), form editor
-👉 **Domain-aware** — serves from Host header, including root path
-👉 **Remote execution** — all commands support `--target <host:port>`
+- 👉 **Agent-first** — JSON by default, semantic exit codes, versioned output
+- 👉 **No Docker, no Node, no MongoDB** — compiled Go binary + SQLite
+- 👉 **Shared assets** — images, CSS, JS stored once, shared across versions
+- 👉 **{{asset "file"}}** — template helper resolves assets by filename
+- 👉 **Admin panel** — schema-driven UI, blog editor (EasyMDE), raw HTML (CodeMirror), form editor
+- 👉 **Domain-aware** — serves from Host header, including root path
+- 👉 **Remote execution** — all commands support `--target <host:port>`
 
 ## Quick Start
 
