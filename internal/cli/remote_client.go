@@ -201,13 +201,21 @@ func (c *RemoteClient) parseResponse(resp *http.Response) (map[string]interface{
 	if err != nil {
 		return nil, err
 	}
-	
-	// Parse as object directly (backend now wraps arrays)
+
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, err
 	}
-	
+
+	// Check for API-level error
+	if resp.StatusCode >= 400 {
+		errMsg := "remote API error"
+		if e, ok := result["error"].(string); ok && e != "" {
+			errMsg = e
+		}
+		return result, fmt.Errorf("%s (HTTP %d)", errMsg, resp.StatusCode)
+	}
+
 	return result, nil
 }
 
