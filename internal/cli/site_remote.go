@@ -145,3 +145,28 @@ func handleRemoteSiteUpload(target string, siteSlug, assetPath string, data []by
 	}
 	writeJSON(map[string]interface{}{"version": "1.0", "result": result})
 }
+
+func handleRemoteAssetsList(target, siteSlug string) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fail(ExitInvalidInput, err.Error())
+	}
+	result, err := client.ListAssets(siteSlug)
+	if err != nil {
+		fail(ExitExtFailed, err.Error())
+	}
+	data, _ := json.Marshal(result)
+	writeJSON(map[string]interface{}{"version": "1.0", "assets": json.RawMessage(data)})
+}
+
+func handleRemoteAssetsRemove(target string, args []string) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fail(ExitInvalidInput, err.Error())
+	}
+	result, err := client.RemoveAsset(args[0], args[1])
+	if err != nil {
+		fail(ExitExtFailed, err.Error())
+	}
+	writeJSON(map[string]interface{}{"version": "1.0", "result": result})
+}

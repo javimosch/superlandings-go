@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/javimosch/superlandings-go/internal/db"
 	"github.com/yuin/goldmark"
@@ -175,6 +176,70 @@ func (s *SiteService) UploadAsset(siteSlug, assetPath string, data []byte) error
 	if err := os.WriteFile(fullPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write asset: %w", err)
 	}
+	return nil
+}
+
+// AssetInfo represents a single asset file.
+type AssetInfo struct {
+	Path     string    `json:"path"`
+	Size     int64     `json:"size"`
+	Modified time.Time `json:"modified"`
+}
+
+// ListAssets returns all assets in the shared assets directory.
+func (s *SiteService) ListAssets(siteSlug string) ([]AssetInfo, error) {
+	site, err := s.siteRepo.GetBySlug(siteSlug)
+	if err != nil {
+		return nil, fmt.Errorf("site not found: %w", err)
+	}
+
+	assetsDir := filepath.Join(s.cfg.SitesDir, site.Slug, "assets")
+	if _, err := os.Stat(assetsDir); os.IsNotExist(err) {
+		return []AssetInfo{}, nil
+	}
+
+	var assets []AssetInfo
+	err = filepath.Walk(assetsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, _ := filepath.Rel(assetsDir, path)
+		assets = append(assets, AssetInfo{
+			Path:     rel,
+			Size:     info.Size(),
+			Modified: info.ModTime(),
+		})
+		return nil
+	})
+	return assets, err
+}
+
+// RemoveAsset removes a single asset file from the shared assets directory.
+func (s *SiteService) RemoveAsset(siteSlug, assetPath string) error {
+	site, err := s.siteRepo.GetBySlug(siteSlug)
+	if err != nil {
+		return fmt.Errorf("site not found: %w", err)
+	}
+
+	fullPath := filepath.Join(s.cfg.SitesDir, site.Slug, "assets", assetPath)
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return fmt.Errorf("asset not found: %s", assetPath)
+	}
+
+	if err := os.Remove(fullPath); err != nil {
+		return fmt.Errorf("failed to remove asset: %w", err)
+	}
+
+	// Remove empty parent dirs up to assets/ boundary
+	for dir := filepath.Dir(fullPath); dir != filepath.Join(s.cfg.SitesDir, site.Slug, "assets"); dir = filepath.Dir(dir) {
+		if err := os.Remove(dir); err != nil {
+			break
+		}
+	}
+
 	return nil
 }
 

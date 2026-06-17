@@ -127,6 +127,24 @@ func (c *RemoteClient) UploadAsset(siteSlug, assetPath string, data []byte) (map
 	return c.postJSON("/api/sites/"+siteSlug+"/upload", payload)
 }
 
+func (c *RemoteClient) ListAssets(siteSlug string) (map[string]interface{}, error) {
+	resp, err := c.makeRequest("GET", "/api/sites/"+siteSlug+"/assets", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return c.parseResponse(resp)
+}
+
+func (c *RemoteClient) RemoveAsset(siteSlug, assetPath string) (map[string]interface{}, error) {
+	resp, err := c.makeRequest("DELETE", "/api/sites/"+siteSlug+"/assets/"+assetPath, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return c.parseResponse(resp)
+}
+
 func (c *RemoteClient) SyncSite(slug string, payload map[string]interface{}) (map[string]interface{}, error) {
 	return c.postJSON("/api/sites/"+slug+"/sync", payload)
 }

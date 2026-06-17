@@ -238,6 +238,8 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 		s.handleAPISiteWrite(w, r, slug)
 	case "upload":
 		s.handleAPISiteUpload(w, r, slug)
+	case "assets":
+		s.handleAPISiteAssets(w, r, slug)
 	case "files":
 		// Check if it's a file read: /sites/{slug}/files/{file}
 		if len(parts) > 2 {
@@ -620,6 +622,44 @@ func (s *Server) handleAPISiteUpload(w http.ResponseWriter, r *http.Request, slu
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(fmt.Sprintf(`{"success":true,"path":%q,"size":%d}`, payload.Path, len(data))))
+}
+
+func (s *Server) handleAPISiteAssets(w http.ResponseWriter, r *http.Request, slug string) {
+	path := strings.TrimPrefix(r.URL.Path, "/sites/"+slug+"/assets/")
+
+	switch r.Method {
+	case "GET":
+		assets, err := s.siteService.ListAssets(slug)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(fmt.Sprintf(`{"success":false,"error":%q}`, err.Error())))
+			return
+		}
+		data, _ := json.Marshal(assets)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(fmt.Sprintf(`{"assets":%s}`, string(data))))
+
+	case "DELETE":
+		if path == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"success":false,"error":"asset path required"}`))
+			return
+		}
+		if err := s.siteService.RemoveAsset(slug, path); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(fmt.Sprintf(`{"success":false,"error":%q}`, err.Error())))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"success":true}`))
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte(`{"success":false,"error":"method not allowed"}`))
+	}
 }
 
 // authMiddleware validates Bearer token authentication
