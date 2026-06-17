@@ -254,6 +254,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 		/* Markdown editor */
 		.editor-toolbar{display:flex;align-items:center;gap:.75rem;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);background:var(--card)}
 		.editor-toolbar input{flex:1;border:none;font-size:1.1rem;font-weight:600;outline:none;background:transparent;color:var(--text)}
+		.editor-toolbar input.meta{font-size:.85rem;font-weight:400;color:var(--muted)}
 		.EasyMDEContainer{border:none!important;border-radius:0!important;flex:1;display:flex;flex-direction:column}
 		.EasyMDEContainer .editor-toolbar{border:none!important;border-bottom:1px solid var(--border)!important}
 		.EasyMDEContainer .CodeMirror{flex:1!important;border:none!important;border-radius:0!important;font-size:.95rem!important}
@@ -329,7 +330,7 @@ function showSection(i){
 
 /* === MARKDOWN SECTION === */
 function renderMarkdown(panel,sec){
-	panel.innerHTML='<div style="display:flex;flex:1;overflow:hidden"><div id="blog-editor-area" style="display:none;flex:1;flex-direction:column;overflow:hidden"><div class="editor-toolbar"><input type="text" id="post-title" placeholder="Post title..." style="flex:1"><input type="text" id="post-author" placeholder="Author" style="max-width:180px"><input type="text" id="post-date" placeholder="Date" style="max-width:140px"><input type="text" id="post-time" placeholder="Read time" style="max-width:90px"><label style="font-size:.8rem;display:flex;align-items:center;gap:.3rem;white-space:nowrap"><input type="checkbox" id="post-published" checked> Published</label><button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button><button class="btn btn-outline btn-sm" onclick="deletePost()" style="color:#dc2626">Delete</button></div><textarea id="markdown-editor"></textarea></div><div class="sidebar" style="border-left:1px solid var(--border);border-right:none"><h2>Posts</h2><ul class="post-list" id="post-list"></ul><button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button></div></div>';
+	panel.innerHTML='<div style="display:flex;flex:1;overflow:hidden"><div id="blog-editor-area" style="display:none;flex:1;flex-direction:column;overflow:hidden"><div class="editor-toolbar"><input type="text" id="post-title" placeholder="Post title..." style="flex:1"><input type="text" id="post-author" class="meta" placeholder="Author" style="max-width:180px"><input type="text" id="post-date" class="meta" placeholder="Date" style="max-width:140px"><input type="text" id="post-time" class="meta" placeholder="Read time" style="max-width:90px"><label style="font-size:.8rem;display:flex;align-items:center;gap:.3rem;white-space:nowrap"><input type="checkbox" id="post-published" checked> Published</label><button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button><button class="btn btn-outline btn-sm" onclick="deletePost()" style="color:#dc2626">Delete</button></div><textarea id="markdown-editor"></textarea></div><div class="sidebar" style="border-left:1px solid var(--border);border-right:none"><h2>Posts</h2><ul class="post-list" id="post-list"></ul><button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button></div></div>';
 	loadPosts();
 }
 
