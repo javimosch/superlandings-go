@@ -59,7 +59,34 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Token is valid — go directly to editor (no login required)
+	// Read admin schema to check auth preference
+	schemaPath := filepath.Join(s.cfg.SitesDir, site.Slug, "admin-schema.json")
+	authRequired := false
+	if data, err := os.ReadFile(schemaPath); err == nil {
+		var schema map[string]interface{}
+		if json.Unmarshal(data, &schema) == nil {
+			if a, ok := schema["auth"].(string); ok && a == "password" {
+				authRequired = true
+			}
+		}
+	}
+
+	if authRequired {
+		// Check for existing JWT session
+		sessionCookie, err := r.Cookie("sl_admin_session")
+		if err == nil {
+			claims, err := validateJWT(sessionCookie.Value)
+			if err == nil && claims.SiteID == site.ID {
+				s.handleAdminEditor(w, r, site)
+				return
+			}
+		}
+		// Show login form
+		s.handleAdminLogin(w, r, site)
+		return
+	}
+
+	// No auth required — go directly to editor
 	s.handleAdminEditor(w, r, site)
 }
 
@@ -180,8 +207,8 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 			SameSite: http.SameSiteStrictMode,
 		})
 
-		// Redirect to editor
-		http.Redirect(w, r, "/admin/"+site.Slug+"/"+r.URL.Path[len("/admin/"):], http.StatusSeeOther)
+		// Redirect to same URL (cookie is set, next GET shows editor)
+		http.Redirect(w, r, r.URL.Path, http.StatusSeeOther)
 		return
 	}
 
