@@ -174,6 +174,11 @@ func runMigrations() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_form_submissions_site ON form_submissions(site_id, form_key)`,
 		`CREATE INDEX IF NOT EXISTS idx_form_submissions_status ON form_submissions(status)`,
+		`CREATE TABLE IF NOT EXISTS delete_tokens (
+			site_slug TEXT PRIMARY KEY,
+			token TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, migration := range migrations {
