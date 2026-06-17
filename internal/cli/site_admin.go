@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/javimosch/superlandings-go/internal/config"
 	"github.com/javimosch/superlandings-go/internal/db"
@@ -50,16 +49,15 @@ var siteAdminCreateCmd = &cobra.Command{
 		}
 
 		token := generateRandomToken(32)
-		expiresAt := time.Now().Add(30 * 24 * time.Hour)
 		adminRepo := db.NewSiteAdminRepository()
-		if err := adminRepo.CreateAdminToken(site.ID, token, &expiresAt); err != nil {
+		if err := adminRepo.CreateAdminToken(site.ID, token, nil); err != nil {
 			fail(ExitInternal, err.Error())
 		}
 
 		writeJSON(map[string]interface{}{
 			"version": "1.0", "success": true,
 			"admin_url": fmt.Sprintf("/admin/%s/%s", args[0], token),
-			"token":     token, "expires_at": expiresAt,
+			"token": token,
 		})
 	},
 }
@@ -135,16 +133,15 @@ var siteAdminRotateCmd = &cobra.Command{
 		}
 
 		newToken := generateRandomToken(32)
-		expiresAt := time.Now().Add(30 * 24 * time.Hour)
 		adminRepo := db.NewSiteAdminRepository()
-		if err := adminRepo.RotateToken(site.ID, newToken, &expiresAt); err != nil {
+		if err := adminRepo.RotateToken(site.ID, newToken, nil); err != nil {
 			fail(ExitInternal, err.Error())
 		}
 
 		writeJSON(map[string]interface{}{
 			"version": "1.0", "success": true,
 			"admin_url": fmt.Sprintf("/admin/%s/%s", args[0], newToken),
-			"token":     newToken, "expires_at": expiresAt,
+			"token":     newToken,
 		})
 	},
 }

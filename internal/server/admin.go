@@ -24,32 +24,12 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/admin/")
 	parts := strings.Split(path, "/")
 
-	if len(parts) < 2 {
+	if len(parts) < 1 || parts[0] == "" {
 		http.Error(w, "Invalid admin URL", http.StatusBadRequest)
 		return
 	}
 
 	siteSlug := parts[0]
-	token := parts[1]
-
-	// Verify token
-	adminRepo := db.NewSiteAdminRepository()
-	adminToken, err := adminRepo.GetTokenByValue(token)
-	if err != nil {
-		http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
-		return
-	}
-
-	if !adminToken.IsActive {
-		http.Error(w, "Token has been revoked", http.StatusUnauthorized)
-		return
-	}
-
-	// Check expiration
-	if adminToken.ExpiresAt != nil && time.Now().After(*adminToken.ExpiresAt) {
-		http.Error(w, "Token has expired", http.StatusUnauthorized)
-		return
-	}
 
 	// Get site
 	siteRepo := db.NewSiteRepository()
@@ -59,7 +39,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read admin schema to check auth preference
+	// Read schema to check if auth is required
 	schemaPath := filepath.Join(s.cfg.SitesDir, site.Slug, "admin-schema.json")
 	authRequired := false
 	if data, err := os.ReadFile(schemaPath); err == nil {
@@ -71,22 +51,41 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if authRequired {
-		// Check for existing JWT session
-		sessionCookie, err := r.Cookie("sl_admin_session")
-		if err == nil {
-			claims, err := validateJWT(sessionCookie.Value)
-			if err == nil && claims.SiteID == site.ID {
-				s.handleAdminEditor(w, r, site)
-				return
-			}
-		}
-		// Show login form
+	// Auth sites: /admin/slug is enough (no token needed, login form is the gate)
+	if authRequired && len(parts) < 2 {
 		s.handleAdminLogin(w, r, site)
 		return
 	}
 
-	// No auth required — go directly to editor
+	// No-auth sites need a token
+	if !authRequired && len(parts) < 2 {
+		http.Error(w, "This site requires an admin token. Use sl-cli site admin create "+siteSlug, http.StatusBadRequest)
+		return
+	}
+
+	// Auth sites with token: token IS the authentication
+	if authRequired {
+		token := parts[1]
+		adminRepo := db.NewSiteAdminRepository()
+		adminToken, err := adminRepo.GetTokenByValue(token)
+		if err == nil && adminToken.IsActive {
+			s.handleAdminEditor(w, r, site)
+			return
+		}
+		// Invalid token, fall through to login
+		s.handleAdminLogin(w, r, site)
+		return
+	}
+
+	// No-auth sites with token: verify and go directly to editor
+	token := parts[1]
+	adminRepo := db.NewSiteAdminRepository()
+	adminToken, err := adminRepo.GetTokenByValue(token)
+	if err != nil || !adminToken.IsActive {
+		http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+		return
+	}
+	// Token is valid — go directly to editor
 	s.handleAdminEditor(w, r, site)
 }
 
