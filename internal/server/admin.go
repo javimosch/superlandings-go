@@ -140,12 +140,25 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 <body>
 	<div class="login-box">
 		<h2>Login to ` + site.Name + `</h2>
-		<form method="POST">
-			<input type="text" name="email" placeholder="Email" required>
-			<input type="password" name="password" placeholder="Password" required>
+		<form method="POST" id="login-form">
+			<input type="text" name="email" id="login-email" placeholder="Email" required>
+			<input type="password" name="password" id="login-password" placeholder="Password" required>
+			<label style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;margin:.5rem 0;cursor:pointer"><input type="checkbox" id="remember-me"> Se souvenir de moi</label>
 			<button type="submit">Login</button>
 		</form>
 	</div>
+	<script>
+	(function(){
+		var k='sl_creds_` + site.Slug + `';
+		var saved=localStorage.getItem(k);
+		if(saved){var c=JSON.parse(saved);document.getElementById('login-email').value=c.e||'';document.getElementById('login-password').value=c.p||'';document.getElementById('remember-me').checked=true;}
+		document.getElementById('login-form').addEventListener('submit',function(){
+			var cb=document.getElementById('remember-me');
+			if(cb.checked){localStorage.setItem(k,JSON.stringify({e:document.getElementById('login-email').value,p:document.getElementById('login-password').value}));}
+			else{localStorage.removeItem(k);}
+		});
+	})();
+	</script>
 </body>
 </html>`
 		w.Header().Set("Content-Type", "text/html")
