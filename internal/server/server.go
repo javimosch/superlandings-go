@@ -17,16 +17,18 @@ import (
 )
 
 type Server struct {
-	cfg          *config.Config
+	cfg            *config.Config
 	landingService *services.LandingService
 	siteService    *services.SiteService
+	dnsService     *services.DNSService
 }
 
 func NewServer(cfg *config.Config) *Server {
 	return &Server{
-		cfg:          cfg,
+		cfg:            cfg,
 		landingService: services.NewLandingService(cfg),
 		siteService:    services.NewSiteService(cfg),
+		dnsService:     services.NewDNSService(cfg),
 	}
 }
 
@@ -74,13 +76,8 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract site slug and file path
-	parts := strings.SplitN(path, "/", 2)
-	siteSlug := parts[0]
-	filePath := ""
-	if len(parts) > 1 {
-		filePath = parts[1]
-	}
+	// Resolve site slug: try path prefix first, then Host header (domain-based)
+	siteSlug, filePath := s.resolveSite(path, r.Host)
 
 	// Try to serve as a static asset first (shared across versions)
 	if filePath != "" && isAssetExt(filePath) {
@@ -692,6 +689,41 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		
 		next(w, r)
 	}
+}
+
+// resolveSite attempts to resolve a site slug from the request path or Host header.
+// When accessed via a domain (e.g., test-site.intrane.fr/path), the site slug is
+// looked up from the domain mapping, and the full path becomes the file path.
+func (s *Server) resolveSite(path, host string) (siteSlug, filePath string) {
+	// First, try path-based routing: /{slug}/{path}
+	parts := strings.SplitN(path, "/", 2)
+	siteSlug = parts[0]
+	if len(parts) > 1 {
+		filePath = parts[1]
+	}
+
+	// If path doesn't resolve to a known site, try Host header
+	if _, err := s.siteService.GetBySlug(siteSlug); err != nil {
+		h := extractHost(host)
+		if domain, err := s.dnsService.GetDomainByDomain(h); err == nil && domain != nil {
+			sites, _ := s.siteService.List()
+			for _, site := range sites {
+				if site.ID == domain.SiteID {
+					return site.Slug, path
+				}
+			}
+		}
+	}
+
+	return siteSlug, filePath
+}
+
+// extractHost strips the port from a Host header value.
+func extractHost(host string) string {
+	if idx := strings.LastIndex(host, ":"); idx >= 0 {
+		return host[:idx]
+	}
+	return host
 }
 
 // isAssetExt returns true if the file path has a static asset extension.
