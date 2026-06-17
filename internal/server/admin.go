@@ -59,20 +59,8 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if user is already logged in
-	sessionCookie, err := r.Cookie("sl_admin_session")
-	if err == nil {
-		// Validate session
-		claims, err := validateJWT(sessionCookie.Value)
-		if err == nil && claims.SiteID == site.ID {
-			// Valid session, show editor
-			s.handleAdminEditor(w, r, site)
-			return
-		}
-	}
-
-	// Not logged in, show login form
-	s.handleAdminLogin(w, r, site)
+	// Token is valid — go directly to editor (no login required)
+	s.handleAdminEditor(w, r, site)
 }
 
 // handleAdminLogin serves the login form
@@ -202,266 +190,136 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 
 // handleAdminEditor serves the editor UI
 func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site *db.Site) {
+
 	html := `<!DOCTYPE html>
 <html>
 <head>
-	<title>Editor - ` + site.Name + `</title>
+	<title>` + site.Name + ` &mdash; Editor</title>
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">
 	<script src="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js"></script>
 	<style>
-		* { box-sizing: border-box; }
-		body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; background: #f8fafc; }
-		header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-		h1 { margin: 0; font-size: 1.5rem; font-weight: 700; }
-		.logout { background: rgba(255,255,255,0.2); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 500; transition: background 0.2s; }
-		.logout:hover { background: rgba(255,255,255,0.3); }
-		main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
-		.card { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; }
-		h2 { margin-top: 0; color: #1f2937; font-weight: 600; font-size: 1.25rem; }
-		.file-list { list-style: none; padding: 0; margin: 0; }
-		.file-list li { padding: 1rem; border-bottom: 1px solid #f3f4f6; cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-radius: 8px; transition: all 0.2s; margin-bottom: 0.5rem; }
-		.file-list li:hover { background: #f9fafb; transform: translateX(4px); }
-		.file-list li:last-child { border-bottom: none; }
-		.file-item { display: flex; align-items: center; gap: 0.75rem; flex: 1; }
-		.file-icon { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
-		.file-icon.html { background: #e0f2fe; color: #0284c7; }
-		.file-icon.md { background: #fef3c7; color: #d97706; }
-		.file-icon.json { background: #dcfce7; color: #16a34a; }
-		.file-name { font-weight: 500; color: #374151; }
-		.file-path { font-size: 0.875rem; color: #6b7280; }
-		.btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
-		.btn:hover { opacity: 0.9; transform: translateY(-1px); }
-		.btn-secondary { background: #6b7280; }
-		.btn-secondary:hover { background: #4b5563; }
-		.btn-success { background: #10b981; }
-		.btn-success:hover { background: #059669; }
-		.editor-container { display: none; margin-top: 1.5rem; }
-		.editor-container.active { display: block; }
-		textarea { width: 100%; min-height: 400px; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; padding: 1rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; line-height: 1.6; }
-		.editor-actions { margin-top: 1rem; display: flex; gap: 0.75rem; }
-		.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
-		.modal.active { display: flex; justify-content: center; align-items: center; }
-		.modal-content { background: white; padding: 2rem; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 20px 25px rgba(0,0,0,0.1); }
-		.modal-content input { width: 100%; padding: 0.75rem; margin: 0.75rem 0; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
-		.modal-content input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
-		.modal-actions { margin-top: 1rem; display: flex; gap: 0.75rem; justify-content: flex-end; }
-		.tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: white; padding: 0.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-		.tab { background: transparent; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-weight: 500; color: #6b7280; transition: all 0.2s; }
-		.tab:hover { background: #f3f4f6; }
-		.tab.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-		.tab-content { display: none; }
-		.tab-content.active { display: block; }
-		.EasyMDEContainer { border: 1px solid #d1d5db; border-radius: 8px; }
-		.editor-wrapper { display: none; }
-		.editor-wrapper.active { display: block; }
-		.markdown-editor { display: none; }
-		.markdown-editor.active { display: block; }
+		:root{--primary:#2563eb;--accent:#7c3aed;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#94a3b8;--border:#e2e8f0}
+		*{margin:0;padding:0;box-sizing:border-box}
+		body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+		.hdr{background:var(--card);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+		.hdr h1{font-size:1.1rem;font-weight:600}
+		.hdr .site{color:var(--muted);font-weight:400}
+		.hdr a{color:var(--primary);text-decoration:none;font-size:.9rem}
+		.wrap{display:flex;height:calc(100vh - 56px)}
+		.sidebar{width:260px;background:var(--card);border-right:1px solid var(--border);padding:1rem;overflow-y:auto;flex-shrink:0}
+		.sidebar h2{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:1rem 0 .5rem}
+		.post-list{list-style:none}
+		.post-list li{padding:.5rem .75rem;border-radius:6px;cursor:pointer;font-size:.875rem;display:flex;align-items:center;justify-content:space-between;transition:background .15s}
+		.post-list li:hover{background:#f1f5f9}
+		.post-list li .tt{font-weight:500}
+		.post-list li .tag{font-size:.65rem;background:#e0f2fe;color:#0284c7;padding:.15rem .35rem;border-radius:3px}
+		.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+		.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);padding:2rem;text-align:center}
+		.empty h2{font-size:1.25rem;color:var(--text);margin-bottom:.5rem}
+		.empty p{font-size:.9rem;margin-bottom:1.5rem;max-width:400px}
+		.editor-area{flex:1;display:none;flex-direction:column;overflow:hidden}
+		.editor-area.active{display:flex}
+		.editor-toolbar{display:flex;align-items:center;gap:.75rem;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);background:var(--card)}
+		.editor-toolbar input{flex:1;border:none;font-size:1.1rem;font-weight:600;outline:none;background:transparent;color:var(--text)}
+		.EasyMDEContainer{border:none!important;border-radius:0!important;flex:1;display:flex;flex-direction:column}
+		.EasyMDEContainer .editor-toolbar{border:none!important;border-bottom:1px solid var(--border)!important}
+		.EasyMDEContainer .CodeMirror{flex:1!important;border:none!important;border-radius:0!important;font-size:.95rem!important}
+		.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border-radius:6px;font-size:.875rem;font-weight:500;border:none;cursor:pointer;transition:all .15s}
+		.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:#1d4ed8}
+		.btn-success{background:#059669;color:#fff}.btn-success:hover{background:#047857}
+		.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border)}.btn-outline:hover{background:#f1f5f9}
+		.btn-sm{padding:.35rem .75rem;font-size:.8rem}
+		.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center}
+		.modal.active{display:flex}
+		.modal-inner{background:var(--card);padding:1.5rem;border-radius:12px;width:100%;max-width:400px}
+		.modal-inner h2{font-size:1.1rem;margin-bottom:.75rem}
+		.modal-inner input{width:100%;padding:.6rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.9rem;outline:none}
+		.modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem}
+		.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#065f46;color:#fff;padding:.75rem 1.25rem;border-radius:8px;font-size:.875rem;box-shadow:0 4px 12px rgba(0,0,0,.15);opacity:0;transform:translateY(10px);transition:all .3s;z-index:200}
+		.toast.show{opacity:1;transform:translateY(0)}
 	</style>
 </head>
 <body>
-	<header>
-		<h1>Editor: ` + site.Name + `</h1>
-		<button class="logout" onclick="logout()">Logout</button>
-	</header>
-	<main>
-		<div class="tabs">
-			<button class="tab active" onclick="showTab('files')">Files</button>
-			<button class="tab" onclick="showTab('pages')">Pages</button>
-			<button class="tab" onclick="showTab('blog')">Blog</button>
+<div class="hdr">
+	<h1><span class="site">` + site.Name + `</span> Editor</h1>
+	<a href="/` + site.Slug + `" target="_blank">View site &rarr;</a>
+</div>
+<div class="wrap">
+	<div class="sidebar">
+		<h2>Blog Posts</h2>
+		<ul class="post-list" id="post-list"></ul>
+		<button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button>
+	</div>
+	<div class="main">
+		<div class="empty" id="empty-state">
+			<h2>Welcome</h2>
+			<p>Write a new blog post or select one from the sidebar.</p>
+			<button class="btn btn-success" onclick="newPost()">+ Write Your First Post</button>
 		</div>
-
-		<div id="files-tab" class="tab-content active">
-			<div class="card">
-				<h2>Files</h2>
-				<button class="btn btn-success" onclick="showCreateFileModal('')">+ New File</button>
-				<ul class="file-list" id="file-list"></ul>
+		<div class="editor-area" id="editor-area">
+			<div class="editor-toolbar">
+				<input type="text" id="post-title" placeholder="Post title...">
+				<button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button>
 			</div>
-		</div>
-
-		<div id="pages-tab" class="tab-content">
-			<div class="card">
-				<h2>Pages</h2>
-				<button class="btn btn-success" onclick="showCreateFileModal('pages/')">+ New Page</button>
-				<ul class="file-list" id="page-list"></ul>
-			</div>
-		</div>
-
-		<div id="blog-tab" class="tab-content">
-			<div class="card">
-				<h2>Blog Posts</h2>
-				<button class="btn btn-success" onclick="showCreateFileModal('blog/', true)">+ New Post</button>
-				<ul class="file-list" id="blog-list"></ul>
-			</div>
-		</div>
-
-		<div class="card editor-container" id="editor">
-			<h2 id="editor-title">Edit File</h2>
-			<div id="plain-editor" class="editor-wrapper active">
-				<textarea id="editor-content"></textarea>
-			</div>
-			<div id="markdown-editor" class="markdown-editor">
-				<textarea id="markdown-content"></textarea>
-			</div>
-			<div class="editor-actions">
-				<button class="btn" onclick="saveFile()">Save</button>
-				<button class="btn btn-secondary" onclick="closeEditor()">Cancel</button>
-			</div>
-		</div>
-	</main>
-
-	<div class="modal" id="create-modal">
-		<div class="modal-content">
-			<h2 id="modal-title">Create File</h2>
-			<input type="text" id="new-file-name" placeholder="File name (e.g., about-me.html or my-post.md)">
-			<div class="modal-actions">
-				<button class="btn" onclick="createFile()">Create</button>
-				<button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-			</div>
+			<textarea id="markdown-editor"></textarea>
 		</div>
 	</div>
-
-	<script>
-		let currentFile = null;
-		let currentPath = '';
-		let isMarkdown = false;
-		let easyMDE = null;
-
-		function showTab(tab) {
-			document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-			document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-			event.target.classList.add('active');
-			document.getElementById(tab + '-tab').classList.add('active');
-			loadFiles(tab);
+</div>
+<div class="modal" id="modal"><div class="modal-inner">
+	<h2>New Post</h2>
+	<p style="font-size:.875rem;color:var(--muted);margin-bottom:.75rem">Enter a URL slug:</p>
+	<input type="text" id="modal-input" placeholder="my-new-article">
+	<div class="modal-actions">
+		<button class="btn btn-primary" onclick="confirmNewPost()">Create</button>
+		<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+	</div>
+</div></div>
+<div class="toast" id="toast">Saved!</div>
+<script>
+let currentPost=null,easyMDE=null,modalCallback=null;
+const slug="` + site.Slug + `";
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
+function loadPosts(){
+	fetch('/api/sites/'+slug+'/files?path=blog').then(r=>r.json()).then(d=>{
+		const list=document.getElementById('post-list');list.innerHTML='';
+		(d.files||[]).forEach(f=>{
+			const n=f.name.replace(/\.md$/,'').replace(/-/g,' ');const lbl=n.charAt(0).toUpperCase()+n.slice(1);
+			const li=document.createElement('li');
+			li.innerHTML='<span class="tt">'+lbl+'</span><span class="tag">md</span>';
+			li.onclick=()=>editPost(f.path);list.appendChild(li);
+		});
+	});
+}
+function editPost(path){
+	currentPost=path;
+	fetch('/api/sites/'+slug+'/files/'+path).then(r=>r.json()).then(d=>{
+		document.getElementById('empty-state').style.display='none';document.getElementById('editor-area').classList.add('active');
+		const lines=d.content.split('\n');let title='',body=d.content;
+		for(const l of lines){if(l.startsWith('# ')){title=l.replace(/^# /,'').trim();body=lines.slice(lines.indexOf(l)+1).join('\n').trim();break;}}
+		document.getElementById('post-title').value=title||'Untitled';
+		if(easyMDE){easyMDE.value(body);}else{
+			easyMDE=new EasyMDE({element:document.getElementById('markdown-editor'),spellChecker:false,autofocus:true,placeholder:'Write your post...',status:false,toolbar:['bold','italic','heading','|','quote','unordered-list','ordered-list','|','link','image','|','preview','side-by-side','fullscreen']});
+			easyMDE.value(body);
 		}
-
-		function getFileIcon(name, isMarkdown) {
-			if (name.endsWith('.md')) return '<div class="file-icon md">📝</div>';
-			if (name.endsWith('.json')) return '<div class="file-icon json">{ }</div>';
-			return '<div class="file-icon html">🌐</div>';
-		}
-
-		function loadFiles(type) {
-			const path = type === 'files' ? '' : type;
-			fetch('/api/sites/` + site.Slug + `/files?path=' + path)
-				.then(r => r.json())
-				.then(data => {
-					const listId = type === 'files' ? 'file-list' : (type === 'pages' ? 'page-list' : 'blog-list');
-					const list = document.getElementById(listId);
-					list.innerHTML = '';
-					data.files.forEach(f => {
-						const li = document.createElement('li');
-						li.onclick = () => editFile(f.path, f.is_markdown || false);
-						li.innerHTML = '<div class="file-item">' + getFileIcon(f.name, f.is_markdown) + '<div><div class="file-name">' + f.name + '</div><div class="file-path">' + f.path + '</div></div></div>';
-						list.appendChild(li);
-					});
-				});
-		}
-
-		function editFile(path, isMd) {
-			currentFile = path;
-			isMarkdown = isMd;
-			fetch('/api/sites/` + site.Slug + `/files/' + path)
-				.then(r => r.json())
-				.then(data => {
-					document.getElementById('editor-title').textContent = 'Edit: ' + path;
-					document.getElementById('editor').classList.add('active');
-					
-					if (isMd) {
-						document.getElementById('plain-editor').classList.remove('active');
-						document.getElementById('markdown-editor').classList.add('active');
-						document.getElementById('markdown-content').value = data.content;
-						
-						if (easyMDE) {
-							easyMDE.value(data.content);
-						} else {
-							easyMDE = new EasyMDE({
-								element: document.getElementById('markdown-content'),
-								spellChecker: false,
-								autofocus: true,
-								placeholder: 'Write your markdown here...',
-								status: false,
-								toolbar: ['bold', 'italic', 'heading', '|', 'quote', 'unordered-list', 'ordered-list', '|', 'link', 'image', '|', 'preview', 'side-by-side', 'fullscreen']
-							});
-						}
-					} else {
-						document.getElementById('markdown-editor').classList.remove('active');
-						document.getElementById('plain-editor').classList.add('active');
-						document.getElementById('editor-content').value = data.content;
-					}
-				});
-		}
-
-		function saveFile() {
-			let content;
-			if (isMarkdown && easyMDE) {
-				content = easyMDE.value();
-			} else if (isMarkdown) {
-				content = document.getElementById('markdown-content').value;
-			} else {
-				content = document.getElementById('editor-content').value;
-			}
-			
-			fetch('/api/sites/` + site.Slug + `/write', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ file: currentFile, content: content })
-			}).then(r => r.json()).then(data => {
-				if (data.success) {
-					alert('Saved successfully!');
-					closeEditor();
-					loadFiles('files');
-					loadFiles('pages');
-					loadFiles('blog');
-				}
-			});
-		}
-
-		function closeEditor() {
-			document.getElementById('editor').classList.remove('active');
-			document.getElementById('plain-editor').classList.remove('active');
-			document.getElementById('markdown-editor').classList.remove('active');
-			currentFile = null;
-			isMarkdown = false;
-		}
-
-		function showCreateFileModal(path, isMd = false) {
-			currentPath = path;
-			isMarkdown = isMd;
-			document.getElementById('modal-title').textContent = isMd ? 'Create Blog Post' : 'Create File';
-			document.getElementById('new-file-name').placeholder = isMd ? 'my-post.md' : 'file.html';
-			document.getElementById('create-modal').classList.add('active');
-		}
-
-		function closeModal() {
-			document.getElementById('create-modal').classList.remove('active');
-			document.getElementById('new-file-name').value = '';
-		}
-
-		function createFile() {
-			const name = document.getElementById('new-file-name').value;
-			if (!name) return;
-			const path = currentPath + name;
-			fetch('/api/sites/` + site.Slug + `/write', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ file: path, content: '' })
-			}).then(r => r.json()).then(data => {
-				if (data.success) {
-					closeModal();
-					loadFiles(currentPath ? currentPath.replace(/\/$/, '') : 'files');
-					editFile(path, isMarkdown);
-				}
-			});
-		}
-
-		function logout() {
-			document.cookie = 'sl_admin_session=; path=/admin/` + site.Slug + `; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-			window.location.reload();
-		}
-
-		// Load files on init
-		loadFiles('files');
-	</script>
+	});
+}
+function savePost(){
+	const title=document.getElementById('post-title').value.trim();const body=easyMDE?easyMDE.value().trim():'';
+	if(!title&&!body){toast('Nothing to save');return;}
+	const content=(title?'# '+title+'\n\n':'')+body;
+	if(currentPost){
+		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:currentPost,content:content})})
+		.then(r=>r.json()).then(d=>{if(d.success){toast('Published!');loadPosts();}});
+	}else{
+		const slugName=title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'untitled';
+		const fp='blog/'+slugName+'.md';
+		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:fp,content:content})})
+		.then(r=>r.json()).then(d=>{if(d.success){currentPost=fp;toast('Published! /'+slug+'/'+slugName);loadPosts();}});
+	}
+}
+function newPost(){if(easyMDE)easyMDE.value('');document.getElementById('post-title').value='';document.getElementById('empty-state').style.display='none';document.getElementById('editor-area').classList.add('active');currentPost=null;setTimeout(()=>document.getElementById('post-title').focus(),100);}
+loadPosts();
+</script>
 </body>
 </html>`
 	w.Header().Set("Content-Type", "text/html")
