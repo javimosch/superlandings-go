@@ -93,13 +93,16 @@ func (r *SiteVersionRepository) GetActiveLineage(siteID string) ([]SiteVersion, 
 
 func (r *SiteVersionRepository) scanVersion(row *sql.Row) (*SiteVersion, error) {
 	var v SiteVersion
-	err := row.Scan(&v.ID, &v.SiteID, &v.Version, &v.Path, &v.Comment, &v.Author, &v.IsActive, &v.Orphaned, &v.CreatedAt)
+	var comment, author sql.NullString
+	err := row.Scan(&v.ID, &v.SiteID, &v.Version, &v.Path, &comment, &author, &v.IsActive, &v.Orphaned, &v.CreatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("version not found")
 		}
 		return nil, fmt.Errorf("failed to scan version: %w", err)
 	}
+	v.Comment = comment.String
+	v.Author = author.String
 	return &v, nil
 }
 
@@ -113,9 +116,12 @@ func (r *SiteVersionRepository) queryVersions(query string, args ...interface{})
 	var versions []SiteVersion
 	for rows.Next() {
 		var v SiteVersion
-		if err := rows.Scan(&v.ID, &v.SiteID, &v.Version, &v.Path, &v.Comment, &v.Author, &v.IsActive, &v.Orphaned, &v.CreatedAt); err != nil {
+		var comment, author sql.NullString
+		if err := rows.Scan(&v.ID, &v.SiteID, &v.Version, &v.Path, &comment, &author, &v.IsActive, &v.Orphaned, &v.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan version: %w", err)
 		}
+		v.Comment = comment.String
+		v.Author = author.String
 		versions = append(versions, v)
 	}
 	return versions, nil
