@@ -77,7 +77,7 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve site slug: try path prefix first, then Host header (domain-based)
-	siteSlug, filePath := s.resolveSite(path, r.Host)
+	siteSlug, filePath, fromDomain := s.resolveSite(path, r.Host)
 
 	// Try to serve as a static asset first (shared across versions)
 	if filePath != "" && isAssetExt(filePath) {
@@ -93,10 +93,16 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fall back to landing
+	// If resolved from domain, the landing fallback doesn't apply
+	if fromDomain {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Fall back to landing (path-based routing only)
 	content, contentType, err := s.landingService.GetLandingContent(path)
 	if err != nil {
-		http.Error(w, "Site or landing not found", http.StatusNotFound)
+		http.NotFound(w, r)
 		return
 	}
 
@@ -694,7 +700,7 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // resolveSite attempts to resolve a site slug from the request path or Host header.
 // When accessed via a domain (e.g., test-site.intrane.fr/path), the site slug is
 // looked up from the domain mapping, and the full path becomes the file path.
-func (s *Server) resolveSite(path, host string) (siteSlug, filePath string) {
+func (s *Server) resolveSite(path, host string) (siteSlug, filePath string, fromDomain bool) {
 	// First, try path-based routing: /{slug}/{path}
 	parts := strings.SplitN(path, "/", 2)
 	siteSlug = parts[0]
@@ -709,13 +715,13 @@ func (s *Server) resolveSite(path, host string) (siteSlug, filePath string) {
 			sites, _ := s.siteService.List()
 			for _, site := range sites {
 				if site.ID == domain.SiteID {
-					return site.Slug, path
+					return site.Slug, path, true
 				}
 			}
 		}
 	}
 
-	return siteSlug, filePath
+	return siteSlug, filePath, false
 }
 
 // extractHost strips the port from a Host header value.
