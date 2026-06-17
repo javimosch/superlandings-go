@@ -53,6 +53,7 @@ var siteAdminCreateCmd = &cobra.Command{
 		if err := adminRepo.CreateAdminToken(site.ID, token, nil); err != nil {
 			fail(ExitInternal, err.Error())
 		}
+		db.CheckpointWAL()
 
 		writeJSON(map[string]interface{}{
 			"version": "1.0", "success": true,
@@ -137,6 +138,7 @@ var siteAdminRotateCmd = &cobra.Command{
 		if err := adminRepo.RotateToken(site.ID, newToken, nil); err != nil {
 			fail(ExitInternal, err.Error())
 		}
+		db.CheckpointWAL()
 
 		writeJSON(map[string]interface{}{
 			"version": "1.0", "success": true,
@@ -177,6 +179,7 @@ var siteAdminRevokeCmd = &cobra.Command{
 		if err := adminRepo.RevokeAllTokens(site.ID); err != nil {
 			fail(ExitInternal, err.Error())
 		}
+		db.CheckpointWAL()
 
 		writeJSON(map[string]interface{}{
 			"version": "1.0", "success": true, "message": "All admin tokens revoked",

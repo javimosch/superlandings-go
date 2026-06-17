@@ -43,6 +43,12 @@ func Initialize(dbPath string) error {
 	return nil
 }
 
+// CheckpointWAL forces SQLite to checkpoint the WAL file, making
+// recent writes visible to other connections immediately.
+func CheckpointWAL() {
+	DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+}
+
 // Close closes the database connection
 func Close() error {
 	if DB != nil {

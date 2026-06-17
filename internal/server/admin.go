@@ -301,7 +301,11 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 <body>
 <div class="hdr">
 	<h1><span class="site">` + site.Name + `</span> Editor</h1>
-	<a href="/` + site.Slug + `" target="_blank">View site &rarr;</a>
+	<div style="display:flex;align-items:center;gap:.75rem">
+		<span id="auth-state" style="font-size:.8rem;color:var(--muted)"></span>
+		<a href="javascript:logout()" style="color:var(--muted);text-decoration:none;font-size:.85rem">Logout</a>
+		<a href="/` + site.Slug + `" target="_blank">View site &rarr;</a>
+	</div>
 </div>
 <div class="wrap" id="app">
 	<div class="sidebar" id="sidebar">
@@ -457,7 +461,11 @@ function saveForm(){
 	}).catch(function(){toast('Network error');btn.textContent='Save Changes';});
 }
 
+function checkAuth(){var c=document.cookie.match('(^|; )sl_admin_session=([^;]*)');if(c){document.getElementById('auth-state').textContent='Logged in';}}
+function logout(){document.cookie='sl_admin_session=; path=/admin/'+slug+'; expires=Thu, 01 Jan 1970 00:00:00 GMT';location.reload();}
+
 buildUI();
+checkAuth();
 </script>
 </body>
 </html>`
