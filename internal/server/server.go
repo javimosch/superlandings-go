@@ -156,48 +156,47 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 
 // handleRoot serves the root page
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
-	// List all landings
-	landings, err := s.landingService.List()
-	if err != nil {
-		http.Error(w, "Failed to list landings", http.StatusInternalServerError)
-		return
-	}
-
-	// List all sites
 	sites, err := s.siteService.List()
 	if err != nil {
 		http.Error(w, "Failed to list sites", http.StatusInternalServerError)
 		return
 	}
 
-	html := "<html><head><title>SuperLandings</title></head><body>"
-	html += "<h1>SuperLandings</h1>"
-	
-	// Sites section
-	html += "<h2>Sites (with dynamic blocks):</h2>"
-	html += "<ul>"
-	for _, site := range sites {
-		html += fmt.Sprintf("<li><a href=\"/%s\">%s</a></li>", site.Slug, site.Name)
-	}
-	if len(sites) == 0 {
-		html += "<li>No sites found. Create one using: sl-cli site create</li>"
-	}
-	html += "</ul>"
-	
-	// Landings section
-	html += "<h2>Landings:</h2>"
-	html += "<ul>"
-	for _, landing := range landings {
-		html += fmt.Sprintf("<li><a href=\"/%s\">%s (%s)</a></li>", landing.Slug, landing.Name, landing.Type)
-	}
-	if len(landings) == 0 {
-		html += "<li>No landings found. Create one using: sl-cli landing create</li>"
-	}
-	html += "</ul>"
-	
-	html += "</body></html>"
+	landings, _ := s.landingService.List()
 
-	w.Header().Set("Content-Type", "text/html")
+	html := `<!DOCTYPE html><html><head><title>SuperLandings</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+		body{font-family:system-ui,sans-serif;background:#0a0a0f;color:#e4e4ec;max-width:720px;margin:3rem auto;padding:0 1.5rem}
+		h1{font-size:1.5rem;font-weight:700;margin-bottom:.25rem}
+		h1 span{color:#6c5ce7}
+		.sub{color:#7c7c94;font-size:.9rem;margin-bottom:2rem}
+		.section{margin-bottom:2rem}
+		h2{font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:#7c7c94;margin-bottom:.75rem}
+		a{color:#a29bfe;text-decoration:none;display:block;padding:.6rem .75rem;border-radius:6px;transition:background .15s}
+		a:hover{background:#1a1a2e}
+		.row{display:flex;align-items:center;justify-content:space-between}
+		.badge{font-size:.7rem;color:#7c7c94;margin-left:.5rem}
+		.root-btn{font-size:.7rem;background:#6c5ce7;color:#fff;border:none;border-radius:4px;padding:.2rem .5rem;cursor:pointer}
+		.root-btn:hover{background:#a29bfe}
+	</style></head><body>
+	<h1>Super<span>Landings</span></h1>
+	<p class="sub">` + fmt.Sprintf("%d sites", len(sites)+len(landings)) + ` &middot; <code style="font-size:.8rem">sl-cli site create</code> to add</p>
+	<div class="section"><h2>Sites</h2>`
+
+	for _, site := range sites {
+		html += fmt.Sprintf(`<div class="row"><a href="/%s">%s</a><button class="root-btn" onclick="navigator.clipboard.writeText('%s/?site=%s').then(()=>this.textContent='Copied!')">Open at root</button></div>`,
+			site.Slug, site.Name, r.Host, site.Slug)
+	}
+	for _, l := range landings {
+		html += fmt.Sprintf(`<div class="row"><a href="/%s">%s <span class="badge">%s</span></a><button class="root-btn" onclick="navigator.clipboard.writeText('%s/?site=%s').then(()=>this.textContent='Copied!')">Open at root</button></div>`,
+			l.Slug, l.Name, l.Type, r.Host, l.Slug)
+	}
+	if len(sites)+len(landings) == 0 {
+		html += `<p style="color:#7c7c94">No sites yet. Create one: <code>sl-cli site create --name "My Site" --slug "my-site"</code></p>`
+	}
+
+	html += `</div></body></html>`
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(html))
 }
 
