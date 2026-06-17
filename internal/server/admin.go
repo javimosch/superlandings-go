@@ -513,7 +513,6 @@ function renderSubmissions(panel,sec){
 	if(!panel)return;
 	var fkey=sec.source||'contact';
 	panel.innerHTML='<div style="display:flex;flex-direction:column;flex:1;overflow:hidden"><div style="display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);background:var(--card)"><span style="font-weight:600;font-size:.95rem">'+fkey+' <span id="subs-count" style="color:var(--muted);font-weight:400"></span></span><div style="display:flex;gap:.5rem"><button class="btn btn-outline btn-sm" onclick="exportCSV()">CSV</button><button class="btn btn-outline btn-sm" onclick="exportJSON()">JSON</button></div></div><div id="subs-table-wrap" style="flex:1;overflow-y:auto;padding:1rem"><p style="color:var(--muted)">Loading submissions...</p></div><div id="subs-detail" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:100;justify-content:center;align-items:center"><div style="background:var(--card);border-radius:12px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;padding:2rem;box-shadow:0 8px 30px rgba(0,0,0,.2)"><h3 id="subs-detail-title" style="margin-bottom:1rem">Submission</h3><div id="subs-detail-body"></div><div style="display:flex;gap:.5rem;margin-top:1.5rem"><button class="btn btn-sm" onclick="closeDetail()">Close</button><button class="btn btn-outline btn-sm" style="color:#dc2626" id="subs-delete-btn">Delete</button></div></div></div></div>';
-	loadSubmissions(fkey);
 
 	window._subsFkey=fkey;
 	window.exportCSV=function(){window.open('/api/sites/'+slug+'/forms/'+fkey+'/submissions/export','_blank');};
@@ -555,6 +554,8 @@ function renderSubmissions(panel,sec){
 		if(!confirm('Delete this submission?'))return;
 		fetch('/api/sites/'+slug+'/forms/'+fkey+'/submissions/'+id,{method:'DELETE'}).then(function(){loadSubmissions(fkey);toast('Deleted');});
 	};
+
+	loadSubmissions(fkey);
 }
 
 function checkAuth(){var c=document.cookie.match('(^|; )sl_admin_session=([^;]*)');if(c){document.getElementById('auth-state').textContent='Logged in';}}
