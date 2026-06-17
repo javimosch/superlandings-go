@@ -73,6 +73,15 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
 
 	if path == "" {
+		// Try host-based resolution for root path
+		siteSlug, _, fromDomain := s.resolveSite("/", r.Host)
+		if fromDomain && siteSlug != "" {
+			if content, err := s.siteService.GetActiveVersionContent(siteSlug, ""); err == nil {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.Write([]byte(content))
+				return
+			}
+		}
 		s.handleRoot(w, r)
 		return
 	}
