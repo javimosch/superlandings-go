@@ -24,7 +24,11 @@ superlandings-go/
 ├── build.sh                 # Build script
 ├── .gitignore              # Git ignore rules
 ├── README.md               # Project documentation
-└── BRAINSTORM.md           # Architecture brainstorm
+├── AGENTS.md                # Agent guide
+└── docs/                   # Documentation
+    ├── BRAINSTORM.md       # Architecture brainstorm
+    ├── ROADMAP.md          # Project roadmap
+    └── SETUP_SUMMARY.md    # This file
 ```
 
 ### Implemented Features
