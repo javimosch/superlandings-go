@@ -57,6 +57,21 @@ func (r *UserRepository) GetByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
+// GetByID retrieves a user by ID
+func (r *UserRepository) GetByID(id string) (*User, error) {
+	query := `SELECT id, email, password_hash, role, created_at, updated_at FROM users WHERE id = ?`
+	row := DB.QueryRow(query, id)
+	var user User
+	err := row.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role, &user.CreatedAt, &user.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	return &user, nil
+}
+
 // List retrieves all users
 func (r *UserRepository) List() ([]User, error) {
 	query := `SELECT id, email, password_hash, role, created_at, updated_at
@@ -162,4 +177,39 @@ func (r *UserRepository) RevokeSiteAccess(siteID, userID string) error {
 		return fmt.Errorf("failed to revoke site access: %w", err)
 	}
 	return nil
+}
+
+// UserSiteInfo holds a site + role for dashboard listing
+type UserSiteInfo struct {
+	SiteID   string `json:"siteId"`
+	Slug     string `json:"slug"`
+	Name     string `json:"name"`
+	Role     string `json:"role"`
+}
+
+// GetUserSites returns all sites a user has access to
+func (r *UserRepository) GetUserSites(email string) ([]UserSiteInfo, error) {
+	query := `
+		SELECT s.id, s.slug, s.name, su.role
+		FROM site_users su
+		JOIN sites s ON s.id = su.site_id
+		JOIN users u ON u.id = su.user_id
+		WHERE u.email = ?
+		ORDER BY s.name
+	`
+	rows, err := DB.Query(query, email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user sites: %w", err)
+	}
+	defer rows.Close()
+
+	var result []UserSiteInfo
+	for rows.Next() {
+		var s UserSiteInfo
+		if err := rows.Scan(&s.SiteID, &s.Slug, &s.Name, &s.Role); err != nil {
+			return nil, fmt.Errorf("failed to scan user site: %w", err)
+		}
+		result = append(result, s)
+	}
+	return result, nil
 }

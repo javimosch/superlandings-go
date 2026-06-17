@@ -19,13 +19,20 @@ import (
 
 var jwtSecret = []byte("superlandings-secret-key") // TODO: Move to config
 
-// handleAdmin serves the admin login page or editor UI
+// handleAdmin serves the admin dashboard, login page, or editor UI
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/admin/")
 	parts := strings.Split(path, "/")
 
+	// Dashboard: /admin or /admin/ (no slug)
 	if len(parts) < 1 || parts[0] == "" {
-		http.Error(w, "Invalid admin URL", http.StatusBadRequest)
+		s.handleAdminDashboard(w, r)
+		return
+	}
+
+	// Logout: /admin/logout?slug=...
+	if parts[0] == "logout" {
+		s.handleAdminLogout(w, r)
 		return
 	}
 
@@ -107,17 +114,76 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	s.handleAdminEditor(w, r, site)
 }
 
-// handleAdminLogout clears the JWT session cookie and redirects to login
+// handleAdminLogout clears the JWT session cookie and redirects
 func (s *Server) handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 	slug := r.URL.Query().Get("slug")
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     "sl_admin_session",
 		Value:    "",
-		Path:     fmt.Sprintf("/admin/%s", slug),
 		MaxAge:   -1,
 		HttpOnly: true,
-	})
-	http.Redirect(w, r, "/admin/"+slug, http.StatusSeeOther)
+	}
+	if slug != "" {
+		cookie.Path = fmt.Sprintf("/admin/%s", slug)
+		http.SetCookie(w, cookie)
+		http.Redirect(w, r, "/admin/"+slug, http.StatusSeeOther)
+		return
+	}
+	cookie.Path = "/admin"
+	http.SetCookie(w, cookie)
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+// handleAdminDashboard shows login or user's site list
+func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
+	// Check for existing JWT session
+	sessionCookie, err := r.Cookie("sl_admin_session")
+	if err == nil {
+		claims, _ := validateJWT(sessionCookie.Value)
+		if claims != nil && claims.SiteID == "" {
+			s.renderDashboard(w, r, claims.UserID)
+			return
+		}
+	}
+
+	// POST: login
+	if r.Method == "POST" {
+		email := r.FormValue("email")
+		password := r.FormValue("password")
+
+		userRepo := db.NewUserRepository()
+		valid, err := userRepo.VerifyPassword(email, password)
+		if err != nil || !valid {
+			s.renderDashboardLogin(w, "Invalid email or password")
+			return
+		}
+
+		user, err := userRepo.GetByEmail(email)
+		if err != nil {
+			s.renderDashboardLogin(w, "User not found")
+			return
+		}
+
+		// Issue JWT with empty SiteID for dashboard
+		token, err := createJWT(user.ID, "", 24*time.Hour)
+		if err != nil {
+			s.renderDashboardLogin(w, "Failed to create session")
+			return
+		}
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "sl_admin_session",
+			Value:    token,
+			Path:     "/admin",
+			MaxAge:   int(24 * time.Hour / time.Second),
+			HttpOnly: true,
+		})
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+		return
+	}
+
+	// GET: show login form
+	s.renderDashboardLogin(w, "")
 }
 
 // handleAdminLogin serves the login form
@@ -982,4 +1048,115 @@ func generateID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// renderDashboardLogin shows the global login form
+func (s *Server) renderDashboardLogin(w http.ResponseWriter, msg string) {
+	errHTML := ""
+	if msg != "" {
+		errHTML = fmt.Sprintf(`<div style="color:#dc3545;text-align:center;margin-bottom:1rem">%s</div>`, msg)
+	}
+	html := `<!DOCTYPE html>
+<html>
+<head>
+	<title>Admin Dashboard</title>
+	<style>
+		body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f5f5; }
+		.login-box { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+		h2 { margin-top: 0; color: #333; text-align: center; }
+		input { width: 100%; padding: 0.75rem; margin: 0.5rem 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 1rem; }
+		button { width: 100%; padding: 0.75rem; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 1rem; font-size: 1rem; }
+		button:hover { background: #0056b3; }
+	</style>
+</head>
+<body>
+	<div class="login-box">
+		<h2>SuperLandings Admin</h2>
+		` + errHTML +
+		`<form method="POST">
+			<input type="text" name="email" id="login-email" placeholder="Email" required>
+			<input type="password" name="password" id="login-password" placeholder="Password" required>
+			<label style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;margin:.5rem 0;cursor:pointer;justify-content:flex-start"><input type="checkbox" id="remember-me" style="width:auto;margin:0;flex-shrink:0"> Remember me</label>
+			<button type="submit">Login</button>
+		</form>
+	</div>
+	<script>
+(function(){
+	var k='sl_creds_dashboard';
+	var s=localStorage.getItem(k);
+	if(s){var c=JSON.parse(s);document.getElementById('login-email').value=c.e||'';document.getElementById('login-password').value=c.p||'';document.getElementById('remember-me').checked=true;}
+	document.getElementById('remember-me').addEventListener('change',function(){
+		if(!this.checked){localStorage.removeItem(k);document.getElementById('login-email').value='';document.getElementById('login-password').value='';}
+	});
+	document.querySelector('form').addEventListener('submit',function(){
+		var cb=document.getElementById('remember-me');
+		if(cb.checked){localStorage.setItem(k,JSON.stringify({e:document.getElementById('login-email').value,p:document.getElementById('login-password').value}));}
+	});
+})();
+	</script>
+</body>
+</html>`
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
+}
+
+// renderDashboard shows all sites accessible to the user
+func (s *Server) renderDashboard(w http.ResponseWriter, r *http.Request, userID string) {
+	userRepo := db.NewUserRepository()
+	user, err := userRepo.GetByID(userID)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusInternalServerError)
+		return
+	}
+
+	sites, err := userRepo.GetUserSites(user.Email)
+	if err != nil {
+		http.Error(w, "Failed to list sites", http.StatusInternalServerError)
+		return
+	}
+
+	rows := ""
+	for _, site := range sites {
+		roleBadge := ""
+		if site.Role == "admin" {
+			roleBadge = `<span style="background:#28a745;color:white;padding:2px 8px;border-radius:3px;font-size:.75rem;margin-left:.5rem">admin</span>`
+		} else {
+			roleBadge = `<span style="background:#6c757d;color:white;padding:2px 8px;border-radius:3px;font-size:.75rem;margin-left:.5rem">viewer</span>`
+		}
+		rows += fmt.Sprintf(`<tr><td><a href="/admin/%s">%s</a>%s</td></tr>`, site.Slug, site.Name, roleBadge)
+	}
+
+	if len(sites) == 0 {
+		rows = `<tr><td style="text-align:center;color:#999;padding:2rem">No sites assigned yet</td></tr>`
+	}
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+	<title>Admin Dashboard</title>
+	<style>
+		body { font-family: system-ui, sans-serif; background: #f5f5f5; margin: 0; padding: 2rem; }
+		.container { max-width: 700px; margin: 0 auto; }
+		h1 { color: #333; }
+		.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+		table { width: 100%%; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-collapse: collapse; }
+		th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #eee; }
+		td a { color: #007bff; text-decoration: none; font-weight: 500; }
+		td a:hover { text-decoration: underline; }
+		.logout { color: #dc3545; text-decoration: none; font-size: .9rem; }
+	</style>
+</head>
+<body>
+<div class="container">
+	<div class="header">
+		<h1>Sites</h1>
+		<div><span style="color:#666;font-size:.9rem">%s</span> &middot; <a href="/admin/logout" class="logout">Logout</a></div>
+	</div>
+	<table>%s</table>
+</div>
+</body>
+</html>`, user.Email, rows)
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
 }
