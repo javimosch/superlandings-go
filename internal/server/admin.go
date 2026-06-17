@@ -383,11 +383,11 @@ function savePost(){
 
 function newPost(){if(easyMDE)easyMDE.value('');document.getElementById('post-title').value='';document.getElementById('blog-editor-area').style.display='block';currentPost=null;setTimeout(()=>document.getElementById('post-title').focus(),100);}
 
-// === FORM SECTION (loaded) ===
+// === FORM SECTION ===
 function renderForm(panel,sec){
 	const fields=sec.fields||[];
 	const source=sec.source||'index.html.data.json';
-	panel.innerHTML='<div class="form-grid" id="form-fields"><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" onclick="saveForm(\''+source+'\')">Save Changes</button></div>';
+	panel.innerHTML='<div class="form-grid" id="form-fields"><div class="empty"><p>Loading form...</p></div></div><div class="editor-toolbar"><span style="flex:1;font-size:.85rem;color:var(--muted)">Editing: '+source+'</span><button class="btn btn-primary btn-sm" id="form-save-btn" data-source="'+source+'" onclick="saveForm()">Save Changes</button></div>';
 
 	fetch('/api/sites/'+slug+'/files/'+source).then(r=>r.json()).then(d=>{
 		let vals={};
@@ -400,19 +400,23 @@ function renderForm(panel,sec){
 			else html+='<div><label>'+f.label+'</label><input type="'+(f.type==='number'?'number':'text')+'" id="f_'+f.key+'" value="'+v+'"></div>';
 		});
 		ff.innerHTML=html;
-	}).catch(e=>{document.getElementById('form-fields').innerHTML='<div class="empty"><p>Failed to load form data.</p></div>';});
+	}).catch(function(){document.getElementById('form-fields').innerHTML='<div class="empty"><p>Failed to load form data.</p></div>';});
 }
 
-function saveForm(source){
-	const fields=document.querySelectorAll('#form-fields input, #form-fields textarea');
+function saveForm(){
+	var btn=document.getElementById('form-save-btn');
+	var source=btn.getAttribute('data-source');
+	var fields=document.querySelectorAll('#form-fields input, #form-fields textarea');
 	if(!fields.length){toast('Form not loaded yet, try again');return;}
-	let obj={};
-	fields.forEach(f=>{obj[f.id.replace('f_','')]=f.value;});
-	document.getElementById('form-save-btn').textContent='Saving...';
+	var obj={};
+	fields.forEach(function(f){obj[f.id.replace('f_','')]=f.value;});
+	btn.textContent='Saving...';
 	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:source,content:JSON.stringify(obj,null,'  ')})})
-	.then(r=>r.json()).then(d=>{
-		if(d.success){toast('Saved!');document.getElementById('form-save-btn').textContent='Save Changes';}
-		else{toast('Error saving');}
+	.then(function(r){return r.json();}).then(function(d){
+		if(d.success){toast('Saved!');btn.textContent='Save Changes';}
+		else{toast('Error saving');btn.textContent='Save Changes';}
+	}).catch(function(){toast('Network error');btn.textContent='Save Changes';});
+}
 	}).catch(e=>{toast('Network error');document.getElementById('form-save-btn').textContent='Save Changes';});
 }
 
