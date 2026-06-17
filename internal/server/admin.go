@@ -329,36 +329,44 @@ function showSection(i){
 
 /* === MARKDOWN SECTION === */
 function renderMarkdown(panel,sec){
-	panel.innerHTML='<div id="blog-editor-area"><div class="editor-toolbar"><input type="text" id="post-title" placeholder="Post title..."><button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button></div><textarea id="markdown-editor"></textarea></div><div class="sidebar" style="border-left:1px solid var(--border);border-right:none"><h2>Posts</h2><ul class="post-list" id="post-list"></ul><button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button></div>';
+	panel.innerHTML='<div style="display:flex;flex:1;overflow:hidden"><div id="blog-editor-area" style="display:none;flex:1;flex-direction:column;overflow:hidden"><div class="editor-toolbar"><input type="text" id="post-title" placeholder="Post title..." style="flex:1"><input type="text" id="post-author" placeholder="Author" style="max-width:180px"><input type="text" id="post-date" placeholder="Date" style="max-width:140px"><input type="text" id="post-time" placeholder="Read time" style="max-width:90px"><label style="font-size:.8rem;display:flex;align-items:center;gap:.3rem;white-space:nowrap"><input type="checkbox" id="post-published" checked> Published</label><button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button><button class="btn btn-outline btn-sm" onclick="deletePost()" style="color:#dc2626">Delete</button></div><textarea id="markdown-editor"></textarea></div><div class="sidebar" style="border-left:1px solid var(--border);border-right:none"><h2>Posts</h2><ul class="post-list" id="post-list"></ul><button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button></div></div>';
 	loadPosts();
-
-	// Make markdown section a horizontal split
-	const wrap=document.createElement('div');wrap.style.cssText='display:flex;flex:1;overflow:hidden';
-	while(panel.firstChild)wrap.appendChild(panel.firstChild);
-	panel.appendChild(wrap);
-	// Hide editor initially
-	document.getElementById('blog-editor-area').style.display='none';
 }
 
 function loadPosts(){
-	const list=document.getElementById('post-list');if(!list)return;
-	fetch('/api/sites/'+slug+'/files?path=blog').then(r=>r.json()).then(d=>{
+	var list=document.getElementById('post-list');if(!list)return;
+	fetch('/api/sites/'+slug+'/files?path=blog').then(function(r){return r.json()}).then(function(d){
 		list.innerHTML='';
-		(d.files||[]).forEach(f=>{
-			const n=f.name.replace(/\.md$/,'').replace(/-/g,' ');const lbl=n.charAt(0).toUpperCase()+n.slice(1);
-			const li=document.createElement('li');
-			li.innerHTML='<span class="tt">'+lbl+'</span><span class="tag">md</span>';
-			li.onclick=()=>editPost(f.path);list.appendChild(li);
+		(d.files||[]).forEach(function(f){
+			if(!f.name.endsWith('.md'))return;
+			var n=f.name.replace(/\.md$/,'').replace(/-/g,' ');var lbl=n.charAt(0).toUpperCase()+n.slice(1);
+			var li=document.createElement('li');
+			li.innerHTML='<span class="tt">'+lbl+'</span>';
+			li.onclick=function(){editPost(f.path);};
+			list.appendChild(li);
 		});
 	});
 }
 
 function editPost(path){currentPost=path;
-	fetch('/api/sites/'+slug+'/files/'+path).then(r=>r.json()).then(d=>{
-		document.getElementById('blog-editor-area').style.display='block';
-		const lines=d.content.split('\\n');let title='',body=d.content;
-		for(const l of lines){if(l.startsWith('# ')){title=l.replace(/^# /,'').trim();body=lines.slice(lines.indexOf(l)+1).join('\\n').trim();break;}}
-		document.getElementById('post-title').value=title||'Untitled';
+	var metaPath=path+'.data.json';
+	// Load metadata
+	fetch('/api/sites/'+slug+'/files/'+metaPath).then(function(r){return r.json()}).then(function(d){
+		try{
+			var meta=JSON.parse(d.content);
+			document.getElementById('post-title').value=meta.title||'';
+			document.getElementById('post-author').value=meta.author||'';
+			document.getElementById('post-date').value=meta.date||'';
+			document.getElementById('post-time').value=meta.reading_time||'';
+			document.getElementById('post-published').checked=meta.published!==false;
+		}catch(e){}
+	}).catch(function(){});
+	// Load markdown content
+	fetch('/api/sites/'+slug+'/files/'+path).then(function(r){return r.json()}).then(function(d){
+		document.getElementById('blog-editor-area').style.display='flex';
+		var lines=d.content.split('\n');var title='',body=d.content;
+		for(var i=0;i<lines.length;i++){if(lines[i].startsWith('# ')){title=lines[i].replace(/^# /,'').trim();body=lines.slice(i+1).join('\n').trim();break;}}
+		if(!document.getElementById('post-title').value)document.getElementById('post-title').value=title||'Untitled';
 		if(easyMDE)easyMDE.value(body);else{
 			easyMDE=new EasyMDE({element:document.getElementById('markdown-editor'),spellChecker:false,autofocus:true,placeholder:'Write your post...',status:false,toolbar:['bold','italic','heading','|','quote','unordered-list','ordered-list','|','link','image','|','preview','side-by-side','fullscreen']});
 			easyMDE.value(body);
@@ -367,21 +375,34 @@ function editPost(path){currentPost=path;
 }
 
 function savePost(){
-	const title=document.getElementById('post-title').value.trim();const body=easyMDE?easyMDE.value().trim():'';
+	var title=document.getElementById('post-title').value.trim();
+	var body=easyMDE?easyMDE.value().trim():'';
 	if(!title&&!body){toast('Nothing to save');return;}
-	const content=(title?'# '+title+'\\n\\n':'')+body;
-	if(currentPost){
-		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:currentPost,content})})
-		.then(r=>r.json()).then(d=>{if(d.success){toast('Published!');loadPosts();}});
-	}else{
-		const sn=title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'untitled';
-		const fp='blog/'+sn+'.md';
-		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:fp,content})})
-		.then(r=>r.json()).then(d=>{if(d.success){currentPost=fp;toast('Published! /'+slug+'/'+sn);loadPosts();}});
-	}
+	var content=(title?'# '+title+'\n\n':'')+body;
+	var fp=currentPost;
+	if(!fp){var sn=title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'untitled';fp='blog/'+sn+'.md';currentPost=fp;}
+
+	var btn=document.getElementById('post-title');btn.disabled=true;
+	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:fp,content:content})})
+	.then(function(r){return r.json()}).then(function(){
+		// Save metadata
+		var meta={title:title,author:document.getElementById('post-author').value.trim(),date:document.getElementById('post-date').value.trim(),reading_time:document.getElementById('post-time').value.trim(),published:document.getElementById('post-published').checked};
+		fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:fp+'.data.json',content:JSON.stringify(meta)})})
+		.then(function(r){return r.json()}).then(function(){toast('Published!');btn.disabled=false;loadPosts();});
+	});
 }
 
-function newPost(){if(easyMDE)easyMDE.value('');document.getElementById('post-title').value='';document.getElementById('blog-editor-area').style.display='block';currentPost=null;setTimeout(()=>document.getElementById('post-title').focus(),100);}
+function deletePost(){
+	if(!currentPost){toast('No post selected');return;}
+	if(!confirm('Delete this post?'))return;
+	var meta=currentPost+'.data.json';
+	// Remove files by writing empty content (or via remove API)
+	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:currentPost,content:''})})
+	.then(function(){return fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:meta,content:''})})})
+	.then(function(){document.getElementById('blog-editor-area').style.display='none';currentPost=null;loadPosts();toast('Deleted');});
+}
+
+function newPost(){if(easyMDE)easyMDE.value('');document.getElementById('post-title').value='';document.getElementById('post-author').value='';document.getElementById('post-date').value=new Date().toISOString().slice(0,10);document.getElementById('post-time').value='3 min';document.getElementById('post-published').checked=true;document.getElementById('blog-editor-area').style.display='flex';currentPost=null;setTimeout(function(){document.getElementById('post-title').focus()},100);}
 
 // === FORM SECTION ===
 function renderForm(panel,sec){
