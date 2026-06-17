@@ -1328,8 +1328,7 @@ function useAccount(i){
 	var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');
 	var a=accts[i];
 	localStorage.setItem('sl_creds_dashboard',JSON.stringify({e:a.e,p:a.p||''}));
-	document.cookie='sl_admin_session=; Path=/admin; Max-Age=0';
-	location.href='/admin';
+	location.href='/admin/logout'; // server-side cookie clear + redirect
 }
 </script>
 </body>
