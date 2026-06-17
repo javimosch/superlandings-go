@@ -417,8 +417,6 @@ function saveForm(){
 		else{toast('Error saving');btn.textContent='Save Changes';}
 	}).catch(function(){toast('Network error');btn.textContent='Save Changes';});
 }
-	}).catch(e=>{toast('Network error');document.getElementById('form-save-btn').textContent='Save Changes';});
-}
 
 buildUI();
 </script>
