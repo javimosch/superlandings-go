@@ -107,6 +107,19 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	s.handleAdminEditor(w, r, site)
 }
 
+// handleAdminLogout clears the JWT session cookie and redirects to login
+func (s *Server) handleAdminLogout(w http.ResponseWriter, r *http.Request) {
+	slug := r.URL.Query().Get("slug")
+	http.SetCookie(w, &http.Cookie{
+		Name:     "sl_admin_session",
+		Value:    "",
+		Path:     fmt.Sprintf("/admin/%s", slug),
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
+	http.Redirect(w, r, "/admin/"+slug, http.StatusSeeOther)
+}
+
 // handleAdminLogin serves the login form
 func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *db.Site) {
 	if r.Method == "GET" {
@@ -462,7 +475,7 @@ function saveForm(){
 }
 
 function checkAuth(){var c=document.cookie.match('(^|; )sl_admin_session=([^;]*)');if(c){document.getElementById('auth-state').textContent='Logged in';}}
-function logout(){document.cookie='sl_admin_session=; path=/admin/'+slug+'; expires=Thu, 01 Jan 1970 00:00:00 GMT';location.reload();}
+function logout(){location.href='/admin/logout?slug='+slug;}
 
 buildUI();
 checkAuth();

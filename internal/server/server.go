@@ -44,6 +44,7 @@ func (s *Server) Start(port int) error {
 	mux := http.NewServeMux()
 
 	// Admin routes must be registered before the catch-all / handler
+	mux.HandleFunc("/admin/logout", s.handleAdminLogout)
 	mux.HandleFunc("/admin/", s.handleAdmin)
 
 	// API routes must be registered before the catch-all / handler
