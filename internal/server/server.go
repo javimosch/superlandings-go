@@ -174,7 +174,6 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 		a{color:#a29bfe;text-decoration:none;display:block;padding:.6rem .75rem;border-radius:6px;transition:background .15s}
 		a:hover{background:#1a1a2e}
 		.row{display:flex;align-items:center;justify-content:space-between}
-		.badge{font-size:.7rem;color:#7c7c94;margin-left:.5rem}
 		.root-btn{font-size:.7rem;background:#6c5ce7;color:#fff;border:none;border-radius:4px;padding:.2rem .5rem;cursor:pointer}
 		.root-btn:hover{background:#a29bfe}
 	</style></head><body>
@@ -187,8 +186,8 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 			site.Slug, site.Name, r.Host, site.Slug)
 	}
 	for _, l := range landings {
-		html += fmt.Sprintf(`<div class="row"><a href="/%s">%s <span class="badge">%s</span></a><button class="root-btn" onclick="navigator.clipboard.writeText('%s/?site=%s').then(()=>this.textContent='Copied!')">Open at root</button></div>`,
-			l.Slug, l.Name, l.Type, r.Host, l.Slug)
+		html += fmt.Sprintf(`<div class="row"><a href="/%s">%s</a><button class="root-btn" onclick="navigator.clipboard.writeText('%s/?site=%s').then(()=>this.textContent='Copied!')">Open at root</button></div>`,
+			l.Slug, l.Name, r.Host, l.Slug)
 	}
 	if len(sites)+len(landings) == 0 {
 		html += `<p style="color:#7c7c94">No sites yet. Create one: <code>sl-cli site create --name "My Site" --slug "my-site"</code></p>`
