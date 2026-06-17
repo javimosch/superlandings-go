@@ -27,14 +27,14 @@ func (s *SiteService) loadDataFile(dataPath string) (map[string]interface{}, err
 
 // renderTemplate renders content with Go's html/template
 func (s *SiteService) renderTemplate(content string, data map[string]interface{}, baseDir string) (string, error) {
-	// Create template
-	tmpl, err := template.New("page").Parse(content)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse template: %w", err)
+	// Extract site slug from data for asset resolution
+	siteSlug := ""
+	if root, ok := data["root"].(string); ok {
+		siteSlug = strings.TrimPrefix(root, "/")
 	}
 
-	// Add custom functions
-	tmpl = tmpl.Funcs(template.FuncMap{
+	// Create template with functions registered BEFORE parsing
+	tmpl := template.New("page").Funcs(template.FuncMap{
 		"include": func(path string) (string, error) {
 			fullPath := filepath.Join(baseDir, path)
 			content, err := os.ReadFile(fullPath)
@@ -43,7 +43,30 @@ func (s *SiteService) renderTemplate(content string, data map[string]interface{}
 			}
 			return string(content), nil
 		},
+		"asset": func(name string) string {
+			if siteSlug == "" {
+				return ""
+			}
+			assetsDir := filepath.Join(s.cfg.SitesDir, siteSlug, "assets")
+			found := ""
+			filepath.Walk(assetsDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil || found != "" {
+					return nil
+				}
+				if !info.IsDir() && info.Name() == name {
+					rel, _ := filepath.Rel(assetsDir, path)
+					found = "/" + siteSlug + "/" + rel
+				}
+				return nil
+			})
+			return found
+		},
 	})
+
+	tmpl, err := tmpl.Parse(content)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse template: %w", err)
+	}
 
 	// Render template
 	var buf strings.Builder
