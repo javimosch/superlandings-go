@@ -86,65 +86,6 @@ type SiteVersion struct {
 }
 ```
 
-### Landing (legacy)
-```go
-type Landing struct {
-    ID, Name, Slug, Type, OrganizationID string
-    Content                              string
-    Files                                []File
-    Domains                              []Domain
-    Config                               Config
-    CreatedAt, UpdatedAt                 time.Time
-}
-```
-
-## Templating
-
-**Includes** (no data file):
-```html
-{{>include "nav.html"}}
-<h1>Home</h1>
-{{>include "footer.html"}}
-```
-
-**Go Templates** (with data file):
-```html
-<h1>{{.title}}</h1>
-{{if .showBanner}}<div>{{.bannerText}}</div>{{end}}
-{{range .posts}}<h2>{{.title}}</h2>{{end}}
-```
-Data: `index.html.data.json`:
-```json
-{"title":"My Site","showBanner":true,"bannerText":"Welcome!","posts":[{"title":"Post 1"}]}
-```
-
-**Processing pipeline:** Includes are resolved first, then if a `.data.json` file exists, the result is rendered with `html/template`.
-
-### Domain-Aware Serving
-
-Host header in `site_domains` resolves slug, serves at root path (`/`). No Traefik path-rewrite needed.
-
-### Admin Panel (`/admin/{slug}`)
-
-Schema-driven (`admin-schema.json` at site level), html-embedded, stateless:
-
-| Auth | Mode | URL |
-|------|------|-----|
-| `none` | Token-gated (never expires) | `/admin/{slug}/{token}` |
-| `password` | Login form, JWT, logout | `/admin/{slug}` |
-
-| Section | Use case | Editor |
-|---------|----------|--------|
-| `form` + `.html` | Raw HTML | CodeMirror (line numbers, highlight, config height) |
-| `form` + `.data.json` | Editable fields | Text/textarea inputs (non-technical) |
-| `markdown` + `blog` | Blog posts | EasyMDE (metadata, drafts, delete) |
-
-Users: `sl-cli user create` + `sl-cli user grant <site> <email>`. Login field is `type="text"`.
-
-### Blog Module
-
-Posts auto-discovered from `blog/*.md` + `.md.data.json`. Drafts hidden (`published:false`). Template includes: `{{>include "blog-preview.html"}}`. Blog posts wrapped in `layout.html` for site styling. Delete via `DELETE /api/sites/{slug}/files/{path}`.
-
 ## Architecture Decisions
 
 | Area | Choice |
@@ -163,7 +104,7 @@ Posts auto-discovered from `blog/*.md` + `.md.data.json`. Drafts hidden (`publis
 - `/health` — Health check
 
 ### Serving Logic
-Site (Go templates + includes) → landing fallback → 404.
+Site with Go templates + includes → 404.
 
 ### File System Layout
 
@@ -185,7 +126,7 @@ Site (Go templates + includes) → landing fallback → 404.
 └── sl-cli.log
 ```
 
-### Daemon & Systemd
+### Daemon
 
 Systemd unit auto-installed with `--daemon`:
 ```ini
@@ -228,7 +169,7 @@ go build -o sl-cli ./cmd/sl-cli && go test ./...
 - **No `defer db.Close()`** in server start — closes DB before requests arrive.
 - **Template `.Funcs()` before `.Parse()`** — Go requirement.
 - **WAL checkpoint** — call `db.CheckpointWAL()` after token/user writes so daemon sees them.
-- **Domain root path** — `handleLanding` must resolve host for `/` before `handleRoot`.
+- **Domain root path** — host-based resolution must happen before `handleRoot` for `/`.
 - **Admin schema** — `admin-schema.json` at site level, not in version dir.
 - **Toast** — `pointer-events:none` when hidden, `auto` on `.show`.
 - **Login field** — `type="text"` (not email) for non-email usernames.

@@ -11,7 +11,7 @@
   <b>Single binary, zero dependencies, JSON-native CLI.</b>
 </p>
 
-> Single binary landing page management with versioning, dynamic blocks, Go templates,
+> Single binary static site management with versioning, Go templates,
 > shared assets, domain-aware serving, and SQLite persistence.
 
 ```bash
@@ -178,9 +178,8 @@ The admin panel is **opt-in** and **schema-driven**. Enable it per site:
 | Agent-first CLI (JSON, semantic codes) | ✅ |
 | Remote execution (--target) | ✅ |
 | Hybrid SQLite + FS storage | ✅ |
-| Daemon + systemd | ✅ |
+| Daemon (systemd) | ✅ |
 | DNS/Traefik (via hotify-cli) | ✅ |
-| Legacy landing support | ✅ |
 | Blog module | ✅ |
 | Multi-tenancy | 🔜 |
 

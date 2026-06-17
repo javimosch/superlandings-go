@@ -13,7 +13,7 @@ This roadmap outlines the planned development of SuperLandings Go.
 - Sub-path routing (`/site/page`)
 - HTTP server
 - Daemon management
-- Systemd auto-installation
+- Daemon auto-install (systemd)
 - Agent-first CLI (JSON output, semantic exit codes)
 
 ---
@@ -58,8 +58,8 @@ Per-page SEO configuration with Open Graph and Twitter Card tags.
 ### 3.1 User Management
 User authentication and authorization with role-based access control.
 
-### 3.2 Organization Management
-Organization-based multi-tenancy with user-organization relationships.
+### 3.2 Multi-tenancy
+Per-site user access with role-based permissions.
 
 ### 3.3 Authentication Middleware
 HTTP authentication for admin APIs using JWT tokens.
@@ -107,7 +107,6 @@ Auto-reload on file changes for development.
 Hot reload development mode.
 
 ### 6.3 CLI Autocomplete
-Shell completion scripts (bash, zsh, fish).
 
 ---
 
