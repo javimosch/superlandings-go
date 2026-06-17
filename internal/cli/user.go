@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/javimosch/superlandings-go/internal/config"
 	"github.com/javimosch/superlandings-go/internal/db"
@@ -248,6 +249,85 @@ var userRevokeCmd = &cobra.Command{
 }
 
 
+
+var (
+	grantBulkSites string
+	grantBulkUsers string
+	grantBulkRole  string
+)
+
+// user grant-bulk grants multiple users access to multiple sites
+var userGrantBulkCmd = &cobra.Command{
+	Use:   "grant-bulk",
+	Short: "Grant multiple users access to multiple sites",
+	Long:  `Grants all listed users access to all listed sites in a single command.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		if grantBulkSites == "" || grantBulkUsers == "" {
+			fail(ExitMissingFlag, "--sites and --users are required")
+		}
+		if grantBulkRole == "" {
+			grantBulkRole = "admin"
+		}
+
+		sites := strings.Split(grantBulkSites, ",")
+		users := strings.Split(grantBulkUsers, ",")
+
+		cfg, err := config.Load()
+		if err != nil {
+			fail(ExitExtFailed, err.Error())
+		}
+		if err := db.Initialize(cfg.DatabasePath); err != nil {
+			fail(ExitExtFailed, "database init: "+err.Error())
+		}
+		defer db.Close()
+
+		siteRepo := db.NewSiteRepository()
+		userRepo := db.NewUserRepository()
+
+		granted := 0
+		errors := []string{}
+		for _, siteSlug := range sites {
+			siteSlug = strings.TrimSpace(siteSlug)
+			if siteSlug == "" {
+				continue
+			}
+			site, err := siteRepo.GetBySlug(siteSlug)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("site %s: not found", siteSlug))
+				continue
+			}
+			for _, email := range users {
+				email = strings.TrimSpace(email)
+				if email == "" {
+					continue
+				}
+				user, err := userRepo.GetByEmail(email)
+				if err != nil {
+					errors = append(errors, fmt.Sprintf("user %s: not found", email))
+					continue
+				}
+				if err := userRepo.GrantSiteAccess(site.ID, user.ID, grantBulkRole); err != nil {
+					errors = append(errors, fmt.Sprintf("%s → %s: %s", email, siteSlug, err.Error()))
+				} else {
+					granted++
+				}
+			}
+		}
+
+		result := map[string]interface{}{
+			"version": "1.0", "success": len(errors) == 0,
+			"granted": granted, "sites": len(sites), "users": len(users),
+			"message": fmt.Sprintf("Granted %d access entries", granted),
+		}
+		if len(errors) > 0 {
+			result["errors"] = errors
+			result["message"] = fmt.Sprintf("Granted %d access entries (%d errors)", granted, len(errors))
+		}
+		writeJSON(result)
+	},
+}
+
+
 func init() {
 	userListCmd.Flags().String("target", "", "Remote target (host:port)")
 	userCreateCmd.Flags().StringVar(&userEmail, "email", "", "User email")
@@ -265,6 +345,10 @@ func init() {
 	userCmd.AddCommand(userResetPasswordCmd)
 	userCmd.AddCommand(userGrantCmd)
 	userCmd.AddCommand(userRevokeCmd)
+	userGrantBulkCmd.Flags().StringVar(&grantBulkSites, "sites", "", "Comma-separated site slugs")
+	userGrantBulkCmd.Flags().StringVar(&grantBulkUsers, "users", "", "Comma-separated emails")
+	userGrantBulkCmd.Flags().StringVar(&grantBulkRole, "role", "admin", "Role to grant (admin, editor, viewer)")
+	userCmd.AddCommand(userGrantBulkCmd)
 }
 
 // remote handlers
