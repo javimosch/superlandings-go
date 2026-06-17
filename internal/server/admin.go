@@ -47,6 +47,36 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 					s.handleAdminLogin(w, r, site)
 					return
 				}
+				if authRequired && r.Method == "GET" {
+					sessionCookie, err := r.Cookie("sl_admin_session")
+					if err == nil {
+						claims, err := validateJWT(sessionCookie.Value)
+						if err == nil {
+							if claims.SiteID == site.ID || claims.SiteID == "" {
+								// Check site_users for dashboard JWT
+								if claims.SiteID == "" {
+									var role string
+									err := db.DB.QueryRow(`SELECT role FROM site_users WHERE user_id = ? AND site_id = ?`, claims.UserID, site.ID).Scan(&role)
+									if err != nil && role != "" {
+										// Check if superadmin
+										userRepo := db.NewUserRepository()
+										if user, ue := userRepo.GetByID(claims.UserID); ue == nil && user.Role == "superadmin" {
+											// Superadmin bypass
+										} else if err != nil {
+											s.renderAccessDenied(w, site)
+											return
+										}
+									}
+								}
+								s.handleAdminEditor(w, r, site, true)
+								return
+							}
+						}
+					}
+					// No valid session — show login
+					s.handleAdminLogin(w, r, site)
+					return
+				}
 				s.handleAdminEditor(w, r, site, true) // onOwnDomain=true
 				return
 			}
