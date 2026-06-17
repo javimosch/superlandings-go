@@ -21,15 +21,11 @@ var systemdInstallCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		port, _ := cmd.Flags().GetInt("port")
 		if err := installSystemdService(port); err != nil {
-			fmt.Fprintf(os.Stderr, "Error installing systemd service: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-		fmt.Println("Systemd service installed successfully!")
-		fmt.Println("Enable and start with:")
-		fmt.Println("  sudo systemctl enable sl-cli")
-		fmt.Println("  sudo systemctl start sl-cli")
-		fmt.Println("Check status with:")
-		fmt.Println("  sudo systemctl status sl-cli")
+		success("Systemd service installed successfully", map[string]interface{}{
+			"port": port, "service": "sl-cli", "path": "/etc/systemd/system/sl-cli.service",
+		})
 	},
 }
 
@@ -38,10 +34,9 @@ var systemdUninstallCmd = &cobra.Command{
 	Short: "Uninstall systemd service",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := uninstallSystemdService(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error uninstalling systemd service: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-		fmt.Println("Systemd service uninstalled successfully!")
+		success("Systemd service uninstalled successfully", nil)
 	},
 }
 
@@ -51,10 +46,9 @@ func init() {
 	systemdCmd.AddCommand(systemdUninstallCmd)
 }
 
-const systemdServiceTemplate = `[Unit]
+const serviceTmpl = `[Unit]
 Description=SuperLandings CLI Daemon
 After=network.target
-
 [Service]
 Type=simple
 User={{.User}}
@@ -64,75 +58,41 @@ Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-
 [Install]
 WantedBy=multi-user.target
 `
 
 func installSystemdService(port int) error {
-	// Get executable path
 	execPath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("failed to get executable path: %w", err)
+		return fmt.Errorf("getting executable path: %w", err)
 	}
-
-	// Get working directory
 	workingDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
+		return fmt.Errorf("getting working dir: %w", err)
 	}
-
-	// Get current user
-	// In production, you might want to make this configurable
 	user := os.Getenv("USER")
 	if user == "" {
 		user = "root"
 	}
 
-	// Create service file content
 	data := struct {
-		User        string
-		WorkingDir  string
-		Executable  string
-		Port        int
-	}{
-		User:       user,
-		WorkingDir: workingDir,
-		Executable: execPath,
-		Port:       port,
-	}
+		User, WorkingDir, Executable string
+		Port                         int
+	}{user, workingDir, execPath, port}
 
-	tmpl, err := template.New("service").Parse(systemdServiceTemplate)
+	tmpl, err := template.New("service").Parse(serviceTmpl)
 	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+		return fmt.Errorf("parsing template: %w", err)
 	}
 
-	var serviceContent bytes.Buffer
-	if err := tmpl.Execute(&serviceContent, data); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("executing template: %w", err)
 	}
-
-	// Write service file
-	servicePath := "/etc/systemd/system/sl-cli.service"
-	if err := os.WriteFile(servicePath, serviceContent.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write service file: %w", err)
-	}
-
-	// Reload systemd
-	// Note: This requires sudo, will fail if not run as root
-	// exec.Command("systemctl", "daemon-reload").Run()
-
-	return nil
+	return os.WriteFile("/etc/systemd/system/sl-cli.service", buf.Bytes(), 0644)
 }
 
 func uninstallSystemdService() error {
-	servicePath := "/etc/systemd/system/sl-cli.service"
-	if err := os.Remove(servicePath); err != nil {
-		return fmt.Errorf("failed to remove service file: %w", err)
-	}
-
-	// Reload systemd
-	// exec.Command("systemctl", "daemon-reload").Run()
-
-	return nil
+	return os.Remove("/etc/systemd/system/sl-cli.service")
 }

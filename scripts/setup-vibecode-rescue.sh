@@ -32,9 +32,16 @@ mkdir -p "$SITE_DIR"
 echo "📚 Copying site files..."
 cp sites/vibecode-rescue/v1/layout.html "$SITE_DIR/"
 cp sites/vibecode-rescue/v1/index.html "$SITE_DIR/"
+cp sites/vibecode-rescue/v1/index.html.data.json "$SITE_DIR/"
 cp -r sites/vibecode-rescue/v1/pages "$SITE_DIR/"
+cp sites/vibecode-rescue/v1/pages/blog.html.data.json "$SITE_DIR/pages/"
 cp -r sites/vibecode-rescue/v1/blog "$SITE_DIR/"
 echo "  ✅ Copied layout, index, pages, and 50 blog posts"
+
+echo "📝 Extracting blog metadata..."
+node scripts/extract-blog-metadata.js
+cp sites/vibecode-rescue/v1/blog/*.data.json "$SITE_DIR/blog/"
+echo "  ✅ Created metadata files for blog posts"
 
 echo "🎉 Setup complete! The VibeCode Rescue blog site is ready."
 echo "📍 Site: $SITE_SLUG"

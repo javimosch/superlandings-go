@@ -46,9 +46,6 @@ func StartDaemon(cfg *config.Config, port int) error {
 		return fmt.Errorf("error writing PID file: %w", err)
 	}
 
-	fmt.Printf("Daemon started with PID %d\n", pid)
-	fmt.Printf("Logs: %s\n", cfg.LogFile)
-	fmt.Printf("Access at: http://localhost:%d\n", port)
 	return nil
 }
 
@@ -80,7 +77,6 @@ func StopDaemon(cfg *config.Config) error {
 
 	// Remove PID file
 	os.Remove(cfg.PIDFile)
-	fmt.Printf("Daemon stopped (PID %d)\n", pid)
 	return nil
 }
 

@@ -3,9 +3,7 @@ package cli
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/javimosch/superlandings-go/internal/config"
 	"github.com/javimosch/superlandings-go/internal/db"
@@ -28,7 +26,6 @@ var userListCmd = &cobra.Command{
 	Short: "List all users",
 	Run: func(cmd *cobra.Command, args []string) {
 		target, _ := cmd.Flags().GetString("target")
-
 		if target != "" {
 			handleRemoteUserList(target)
 			return
@@ -36,26 +33,19 @@ var userListCmd = &cobra.Command{
 
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-
 		if err := db.Initialize(cfg.DatabasePath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, "database init: "+err.Error())
 		}
 		defer db.Close()
 
 		userRepo := db.NewUserRepository()
 		users, err := userRepo.List()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error listing users: %v\n", err)
-			os.Exit(1)
+			fail(ExitInternal, err.Error())
 		}
-
-		output := map[string]interface{}{"users": users}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
-		fmt.Println(string(jsonData))
+		writeJSON(map[string]interface{}{"version": "1.0", "users": users})
 	},
 }
 
@@ -65,19 +55,16 @@ var userCreateCmd = &cobra.Command{
 	Short: "Create a new user",
 	Run: func(cmd *cobra.Command, args []string) {
 		target, _ := cmd.Flags().GetString("target")
-
 		if target != "" {
 			handleRemoteUserCreate(target, cmd)
 			return
 		}
 
 		if userEmail == "" {
-			fmt.Fprintf(os.Stderr, "Error: --email is required\n")
-			os.Exit(1)
+			fail(ExitMissingFlag, "--email is required")
 		}
 		if userPassword == "" {
-			fmt.Fprintf(os.Stderr, "Error: --password is required\n")
-			os.Exit(1)
+			fail(ExitMissingFlag, "--password is required")
 		}
 		if userRole == "" {
 			userRole = "viewer"
@@ -85,34 +72,22 @@ var userCreateCmd = &cobra.Command{
 
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-
 		if err := db.Initialize(cfg.DatabasePath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, "database init: "+err.Error())
 		}
 		defer db.Close()
 
 		userRepo := db.NewUserRepository()
-		user := &db.User{
-			ID:    generateID(),
-			Email: userEmail,
-			Role:  userRole,
-		}
-
+		user := &db.User{ID: generateID(), Email: userEmail, Role: userRole}
 		if err := userRepo.Create(user, userPassword); err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating user: %v\n", err)
-			os.Exit(1)
+			fail(ExitConflict, err.Error())
 		}
-
-		output := map[string]interface{}{
-			"success": true,
-			"user":    user,
-		}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
-		fmt.Println(string(jsonData))
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true,
+			"message": "User created successfully", "user": user,
+		})
 	},
 }
 
@@ -123,42 +98,31 @@ var userPasswordCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		target, _ := cmd.Flags().GetString("target")
-
 		if target != "" {
 			handleRemoteUserPassword(target, args, cmd)
 			return
 		}
 
-		email := args[0]
 		if userPassword == "" {
-			fmt.Fprintf(os.Stderr, "Error: --password is required\n")
-			os.Exit(1)
+			fail(ExitMissingFlag, "--password is required")
 		}
 
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-
 		if err := db.Initialize(cfg.DatabasePath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, "database init: "+err.Error())
 		}
 		defer db.Close()
 
 		userRepo := db.NewUserRepository()
-		if err := userRepo.UpdatePassword(email, userPassword); err != nil {
-			fmt.Fprintf(os.Stderr, "Error updating password: %v\n", err)
-			os.Exit(1)
+		if err := userRepo.UpdatePassword(args[0], userPassword); err != nil {
+			fail(ExitNotFound, err.Error())
 		}
-
-		output := map[string]interface{}{
-			"success": true,
-			"message": "Password updated successfully",
-		}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
-		fmt.Println(string(jsonData))
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true, "message": "Password updated successfully",
+		})
 	},
 }
 
@@ -168,36 +132,25 @@ var userResetPasswordCmd = &cobra.Command{
 	Short: "Reset a user's password to a random value",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		email := args[0]
-
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-
 		if err := db.Initialize(cfg.DatabasePath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, "database init: "+err.Error())
 		}
 		defer db.Close()
 
-		// Generate random password
 		newPassword := generateRandomPassword(16)
-
 		userRepo := db.NewUserRepository()
-		if err := userRepo.UpdatePassword(email, newPassword); err != nil {
-			fmt.Fprintf(os.Stderr, "Error updating password: %v\n", err)
-			os.Exit(1)
+		if err := userRepo.UpdatePassword(args[0], newPassword); err != nil {
+			fail(ExitNotFound, err.Error())
 		}
 
-		output := map[string]interface{}{
-			"success":  true,
-			"message":  "Password reset successfully",
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true, "message": "Password reset successfully",
 			"password": newPassword,
-		}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
-		fmt.Println(string(jsonData))
+		})
 	},
 }
 
@@ -208,72 +161,60 @@ var userGrantCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		target, _ := cmd.Flags().GetString("target")
-
 		if target != "" {
 			handleRemoteUserGrant(target, args, cmd)
 			return
 		}
 
-		siteSlug := args[0]
-		email := args[1]
+		siteSlug, email := args[0], args[1]
 		if userRole == "" {
 			userRole = "viewer"
 		}
 
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-
 		if err := db.Initialize(cfg.DatabasePath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, "database init: "+err.Error())
 		}
 		defer db.Close()
 
-		// Get site by slug
 		siteRepo := db.NewSiteRepository()
 		site, err := siteRepo.GetBySlug(siteSlug)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: site not found\n")
-			os.Exit(1)
+			fail(ExitNotFound, "site not found")
 		}
 
-		// Get user by email
 		userRepo := db.NewUserRepository()
 		user, err := userRepo.GetByEmail(email)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: user not found\n")
-			os.Exit(1)
+			fail(ExitNotFound, "user not found")
 		}
 
-		// Grant access
 		if err := userRepo.GrantSiteAccess(site.ID, user.ID, userRole); err != nil {
-			fmt.Fprintf(os.Stderr, "Error granting access: %v\n", err)
-			os.Exit(1)
+			fail(ExitConflict, err.Error())
 		}
-
-		output := map[string]interface{}{
-			"success": true,
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true,
 			"message": fmt.Sprintf("Granted %s access to %s", userRole, siteSlug),
-		}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
-		fmt.Println(string(jsonData))
+		})
 	},
 }
 
+var userListRemote func(string)
+var userCreateRemote func(string, *cobra.Command)
+var userPasswordRemote func(string, []string, *cobra.Command)
+var userGrantRemote func(string, []string, *cobra.Command)
+
 func init() {
 	userListCmd.Flags().String("target", "", "Remote target (host:port)")
-
 	userCreateCmd.Flags().StringVar(&userEmail, "email", "", "User email")
 	userCreateCmd.Flags().StringVar(&userPassword, "password", "", "User password")
 	userCreateCmd.Flags().StringVar(&userRole, "role", "", "User role (admin, editor, viewer)")
 	userCreateCmd.Flags().String("target", "", "Remote target (host:port)")
-
 	userPasswordCmd.Flags().StringVar(&userPassword, "password", "", "New password")
 	userPasswordCmd.Flags().String("target", "", "Remote target (host:port)")
-
 	userGrantCmd.Flags().StringVar(&userRole, "role", "", "Role to grant (editor, viewer)")
 	userGrantCmd.Flags().String("target", "", "Remote target (host:port)")
 
@@ -284,75 +225,53 @@ func init() {
 	userCmd.AddCommand(userGrantCmd)
 }
 
+// remote handlers
 func handleRemoteUserList(target string) {
 	client, err := NewRemoteClientFromTarget(target)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitInvalidInput, err.Error())
 	}
-
 	result, err := client.ListUsers()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitExtFailed, err.Error())
 	}
-
-	jsonData, _ := json.MarshalIndent(result, "", "  ")
-	fmt.Println(string(jsonData))
+	writeJSON(map[string]interface{}{"version": "1.0", "users": result})
 }
 
 func handleRemoteUserCreate(target string, cmd *cobra.Command) {
 	client, err := NewRemoteClientFromTarget(target)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitInvalidInput, err.Error())
 	}
-
 	result, err := client.CreateUser(userEmail, userPassword, userRole)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitExtFailed, err.Error())
 	}
-
-	jsonData, _ := json.MarshalIndent(result, "", "  ")
-	fmt.Println(string(jsonData))
+	writeJSON(map[string]interface{}{"version": "1.0", "result": result})
 }
 
 func handleRemoteUserPassword(target string, args []string, cmd *cobra.Command) {
 	client, err := NewRemoteClientFromTarget(target)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitInvalidInput, err.Error())
 	}
-
-	email := args[0]
-	result, err := client.SetUserPassword(email, userPassword)
+	result, err := client.SetUserPassword(args[0], userPassword)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitExtFailed, err.Error())
 	}
-
-	jsonData, _ := json.MarshalIndent(result, "", "  ")
-	fmt.Println(string(jsonData))
+	writeJSON(map[string]interface{}{"version": "1.0", "result": result})
 }
 
 func handleRemoteUserGrant(target string, args []string, cmd *cobra.Command) {
 	client, err := NewRemoteClientFromTarget(target)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitInvalidInput, err.Error())
 	}
-
-	siteSlug := args[0]
-	email := args[1]
-	result, err := client.GrantSiteAccess(siteSlug, email, userRole)
+	result, err := client.GrantSiteAccess(args[0], args[1], userRole)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitExtFailed, err.Error())
 	}
-
-	jsonData, _ := json.MarshalIndent(result, "", "  ")
-	fmt.Println(string(jsonData))
+	writeJSON(map[string]interface{}{"version": "1.0", "result": result})
 }
 
 func generateID() string {

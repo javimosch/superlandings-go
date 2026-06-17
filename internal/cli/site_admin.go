@@ -3,9 +3,7 @@ package cli
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/javimosch/superlandings-go/internal/config"
@@ -26,57 +24,38 @@ var siteAdminCreateCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		target, _ := cmd.Flags().GetString("target")
-
 		if target != "" {
 			handleRemoteSiteAdminCreate(target, args[0])
 			return
 		}
 
-		siteSlug := args[0]
-
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-
 		if err := db.Initialize(cfg.DatabasePath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, "database init: "+err.Error())
 		}
 		defer db.Close()
 
-		// Get site by slug
 		siteRepo := db.NewSiteRepository()
-		site, err := siteRepo.GetBySlug(siteSlug)
+		site, err := siteRepo.GetBySlug(args[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: site not found\n")
-			os.Exit(1)
+			fail(ExitNotFound, "site not found")
 		}
 
-		// Generate token
 		token := generateRandomToken(32)
-
-		// Set expiration (30 days from now)
 		expiresAt := time.Now().Add(30 * 24 * time.Hour)
-
-		// Create admin token
 		adminRepo := db.NewSiteAdminRepository()
 		if err := adminRepo.CreateAdminToken(site.ID, token, &expiresAt); err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating admin token: %v\n", err)
-			os.Exit(1)
+			fail(ExitInternal, err.Error())
 		}
 
-		adminURL := fmt.Sprintf("/admin/%s/%s", siteSlug, token)
-
-		output := map[string]interface{}{
-			"success": true,
-			"admin_url": adminURL,
-			"token": token,
-			"expires_at": expiresAt,
-		}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
-		fmt.Println(string(jsonData))
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true,
+			"admin_url": fmt.Sprintf("/admin/%s/%s", args[0], token),
+			"token":     token, "expires_at": expiresAt,
+		})
 	},
 }
 
@@ -87,53 +66,39 @@ var siteAdminViewCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		target, _ := cmd.Flags().GetString("target")
-
 		if target != "" {
 			handleRemoteSiteAdminView(target, args[0])
 			return
 		}
 
-		siteSlug := args[0]
-
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-
 		if err := db.Initialize(cfg.DatabasePath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, "database init: "+err.Error())
 		}
 		defer db.Close()
 
-		// Get site by slug
 		siteRepo := db.NewSiteRepository()
-		site, err := siteRepo.GetBySlug(siteSlug)
+		site, err := siteRepo.GetBySlug(args[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: site not found\n")
-			os.Exit(1)
+			fail(ExitNotFound, "site not found")
 		}
 
-		// Get active token
 		adminRepo := db.NewSiteAdminRepository()
-		token, err := adminRepo.GetActiveTokenBySite(site.ID)
+		adminToken, err := adminRepo.GetActiveTokenBySite(site.ID)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "No active admin token found. Use 'sl-cli site admin create' to create one.\n")
-			os.Exit(1)
+			fail(ExitNotFound, "No active admin token found. Use 'sl-cli site admin create' to create one.")
 		}
 
-		adminURL := fmt.Sprintf("/admin/%s/%s", siteSlug, token.Token)
-
-		output := map[string]interface{}{
-			"success": true,
-			"admin_url": adminURL,
-			"token": token.Token,
-			"created_at": token.CreatedAt,
-			"expires_at": token.ExpiresAt,
-		}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
-		fmt.Println(string(jsonData))
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true,
+			"admin_url": fmt.Sprintf("/admin/%s/%s", args[0], adminToken.Token),
+			"token":     adminToken.Token,
+			"created_at": adminToken.CreatedAt,
+			"expires_at": adminToken.ExpiresAt,
+		})
 	},
 }
 
@@ -144,57 +109,38 @@ var siteAdminRotateCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		target, _ := cmd.Flags().GetString("target")
-
 		if target != "" {
 			handleRemoteSiteAdminRotate(target, args[0])
 			return
 		}
 
-		siteSlug := args[0]
-
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-
 		if err := db.Initialize(cfg.DatabasePath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, "database init: "+err.Error())
 		}
 		defer db.Close()
 
-		// Get site by slug
 		siteRepo := db.NewSiteRepository()
-		site, err := siteRepo.GetBySlug(siteSlug)
+		site, err := siteRepo.GetBySlug(args[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: site not found\n")
-			os.Exit(1)
+			fail(ExitNotFound, "site not found")
 		}
 
-		// Generate new token
 		newToken := generateRandomToken(32)
-
-		// Set expiration (30 days from now)
 		expiresAt := time.Now().Add(30 * 24 * time.Hour)
-
-		// Rotate token
 		adminRepo := db.NewSiteAdminRepository()
 		if err := adminRepo.RotateToken(site.ID, newToken, &expiresAt); err != nil {
-			fmt.Fprintf(os.Stderr, "Error rotating admin token: %v\n", err)
-			os.Exit(1)
+			fail(ExitInternal, err.Error())
 		}
 
-		adminURL := fmt.Sprintf("/admin/%s/%s", siteSlug, newToken)
-
-		output := map[string]interface{}{
-			"success": true,
-			"admin_url": adminURL,
-			"token": newToken,
-			"expires_at": expiresAt,
-		}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
-		fmt.Println(string(jsonData))
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true,
+			"admin_url": fmt.Sprintf("/admin/%s/%s", args[0], newToken),
+			"token":     newToken, "expires_at": expiresAt,
+		})
 	},
 }
 
@@ -205,47 +151,34 @@ var siteAdminRevokeCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		target, _ := cmd.Flags().GetString("target")
-
 		if target != "" {
 			handleRemoteSiteAdminRevoke(target, args[0])
 			return
 		}
 
-		siteSlug := args[0]
-
 		cfg, err := config.Load()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-
 		if err := db.Initialize(cfg.DatabasePath); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, "database init: "+err.Error())
 		}
 		defer db.Close()
 
-		// Get site by slug
 		siteRepo := db.NewSiteRepository()
-		site, err := siteRepo.GetBySlug(siteSlug)
+		site, err := siteRepo.GetBySlug(args[0])
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: site not found\n")
-			os.Exit(1)
+			fail(ExitNotFound, "site not found")
 		}
 
-		// Revoke all tokens
 		adminRepo := db.NewSiteAdminRepository()
 		if err := adminRepo.RevokeAllTokens(site.ID); err != nil {
-			fmt.Fprintf(os.Stderr, "Error revoking tokens: %v\n", err)
-			os.Exit(1)
+			fail(ExitInternal, err.Error())
 		}
 
-		output := map[string]interface{}{
-			"success": true,
-			"message": "All admin tokens revoked",
-		}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
-		fmt.Println(string(jsonData))
+		writeJSON(map[string]interface{}{
+			"version": "1.0", "success": true, "message": "All admin tokens revoked",
+		})
 	},
 }
 
@@ -264,69 +197,49 @@ func init() {
 func handleRemoteSiteAdminCreate(target, siteSlug string) {
 	client, err := NewRemoteClientFromTarget(target)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitInvalidInput, err.Error())
 	}
-
 	result, err := client.CreateSiteAdminToken(siteSlug)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitExtFailed, err.Error())
 	}
-
-	jsonData, _ := json.MarshalIndent(result, "", "  ")
-	fmt.Println(string(jsonData))
+	writeJSON(map[string]interface{}{"version": "1.0", "result": result})
 }
 
 func handleRemoteSiteAdminView(target, siteSlug string) {
 	client, err := NewRemoteClientFromTarget(target)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitInvalidInput, err.Error())
 	}
-
 	result, err := client.GetSiteAdminToken(siteSlug)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitExtFailed, err.Error())
 	}
-
-	jsonData, _ := json.MarshalIndent(result, "", "  ")
-	fmt.Println(string(jsonData))
+	writeJSON(map[string]interface{}{"version": "1.0", "result": result})
 }
 
 func handleRemoteSiteAdminRotate(target, siteSlug string) {
 	client, err := NewRemoteClientFromTarget(target)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitInvalidInput, err.Error())
 	}
-
 	result, err := client.RotateSiteAdminToken(siteSlug)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitExtFailed, err.Error())
 	}
-
-	jsonData, _ := json.MarshalIndent(result, "", "  ")
-	fmt.Println(string(jsonData))
+	writeJSON(map[string]interface{}{"version": "1.0", "result": result})
 }
 
 func handleRemoteSiteAdminRevoke(target, siteSlug string) {
 	client, err := NewRemoteClientFromTarget(target)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitInvalidInput, err.Error())
 	}
-
 	result, err := client.RevokeSiteAdminToken(siteSlug)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fail(ExitExtFailed, err.Error())
 	}
-
-	jsonData, _ := json.MarshalIndent(result, "", "  ")
-	fmt.Println(string(jsonData))
+	writeJSON(map[string]interface{}{"version": "1.0", "result": result})
 }
 
 func generateRandomToken(length int) string {

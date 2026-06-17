@@ -1,9 +1,6 @@
 package cli
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/javimosch/superlandings-go/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -20,23 +17,12 @@ var targetsListCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg, err := config.LoadCLIConfig()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+			fail(ExitExtFailed, err.Error())
 		}
-
-		if len(cfg.Targets) == 0 {
-			fmt.Println("No targets configured")
-			return
+		if cfg.Targets == nil {
+			cfg.Targets = []config.Target{}
 		}
-
-		fmt.Println("Name\tHost\tPort\tDefault")
-		for _, target := range cfg.Targets {
-			def := ""
-			if target.Default {
-				def = "*"
-			}
-			fmt.Printf("%s\t%s\t%d\t%s\n", target.Name, target.Host, target.Port, def)
-		}
+		writeJSON(map[string]interface{}{"version": "1.0", "targets": cfg.Targets})
 	},
 }
 
@@ -51,48 +37,32 @@ var targetsAddCmd = &cobra.Command{
 		setDefault, _ := cmd.Flags().GetBool("default")
 
 		if name == "" || host == "" {
-			fmt.Fprintf(os.Stderr, "Error: --name and --host are required\n")
-			os.Exit(1)
+			fail(ExitMissingFlag, "--name and --host are required")
 		}
-
 		if port == 0 {
-			port = 3100 // default port
+			port = 3100
 		}
 
-		target := config.Target{
-			Name:      name,
-			Host:      host,
-			Port:      port,
-			AuthToken: token,
-			Default:   setDefault,
-		}
-
+		target := config.Target{Name: name, Host: host, Port: port, AuthToken: token, Default: setDefault}
 		if err := config.AddTarget(target); err != nil {
-			fmt.Fprintf(os.Stderr, "Error adding target: %v\n", err)
-			os.Exit(1)
+			fail(ExitConflict, err.Error())
 		}
 
-		fmt.Printf("Target '%s' added successfully\n", name)
+		success("Target added successfully", map[string]interface{}{
+			"name": name, "host": host, "port": port,
+		})
 	},
 }
 
 var targetsRemoveCmd = &cobra.Command{
-	Use:   "remove",
+	Use:   "remove <name>",
 	Short: "Remove a target",
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) != 1 {
-			fmt.Fprintf(os.Stderr, "Error: target name required\n")
-			os.Exit(1)
+		if err := config.RemoveTarget(args[0]); err != nil {
+			fail(ExitNotFound, err.Error())
 		}
-
-		name := args[0]
-
-		if err := config.RemoveTarget(name); err != nil {
-			fmt.Fprintf(os.Stderr, "Error removing target: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Printf("Target '%s' removed successfully\n", name)
+		success("Target removed successfully", nil)
 	},
 }
 
