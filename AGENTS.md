@@ -171,6 +171,7 @@ go build -o sl-cli ./cmd/sl-cli && go test ./...
 - **WAL checkpoint** — call `db.CheckpointWAL()` after token/user writes so daemon sees them.
 - **Domain root path** — host-based resolution must happen before `handleRoot` for `/`.
 - **Admin schema** — `admin-schema.json` at site level, not in version dir.
+- **Roles** — see [docs/roles.md](docs/roles.md) for RBAC table (admin/editor/viewer).
 - **Toast** — `pointer-events:none` when hidden, `auto` on `.show`.
 - **Login field** — `type="text"` (not email) for non-email usernames.
 - **Shared assets** — in `sites/{slug}/assets/`, not per-version.
