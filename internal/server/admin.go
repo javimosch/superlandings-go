@@ -26,6 +26,31 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 
 	// Dashboard: /admin or /admin/ (no slug)
 	if len(parts) < 1 || parts[0] == "" {
+		// If Host header resolves to a site, serve per-site admin directly
+		slug, _, fromDomain := s.resolveSite("/", r.Host)
+		if fromDomain && slug != "" {
+			siteRepo := db.NewSiteRepository()
+			site, err := siteRepo.GetBySlug(slug)
+			if err == nil {
+				// Run same auth checks as /admin/{slug} route
+				schemaPath := filepath.Join(s.cfg.SitesDir, site.Slug, "admin-schema.json")
+				authRequired := false
+				if data, err := os.ReadFile(schemaPath); err == nil {
+					var schema map[string]interface{}
+					if json.Unmarshal(data, &schema) == nil {
+						if a, ok := schema["auth"].(string); ok && a == "password" {
+							authRequired = true
+						}
+					}
+				}
+				if authRequired && r.Method == "POST" {
+					s.handleAdminLogin(w, r, site)
+					return
+				}
+				s.handleAdminEditor(w, r, site, true) // onOwnDomain=true
+				return
+			}
+		}
 		s.handleAdminDashboard(w, r)
 		return
 	}
@@ -37,6 +62,12 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	siteSlug := parts[0]
+
+	// If on site's own domain with /admin/{slug}, redirect to /admin
+	if rs, _, fd := s.resolveSite("/", r.Host); fd && rs == siteSlug {
+		http.Redirect(w, r, "/admin", http.StatusMovedPermanently)
+		return
+	}
 
 	// Get site
 	siteRepo := db.NewSiteRepository()
@@ -375,19 +406,27 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 			return
 		}
 
-		// Set cookie
+		// Set cookie (use /admin path when on site's own domain)
+		cookiePath := "/admin/" + site.Slug
+		if rslug, _, fromDomain := s.resolveSite("/", r.Host); fromDomain && rslug == site.Slug {
+			cookiePath = "/admin"
+		}
 		http.SetCookie(w, &http.Cookie{
 			Name:     "sl_admin_session",
 			Value:    sessionToken,
-			Path:     "/admin/" + site.Slug,
+			Path:     cookiePath,
 			MaxAge:   86400, // 24 hours
 			HttpOnly: true,
 			Secure:   false, // TODO: Set to true in production with HTTPS
 			SameSite: http.SameSiteStrictMode,
 		})
 
-		// Redirect to same URL (cookie is set, next GET shows editor)
-		http.Redirect(w, r, r.URL.Path, http.StatusSeeOther)
+		// Redirect to admin (use /admin on own domain, /admin/{slug} otherwise)
+		redirectPath := r.URL.Path
+		if rslug, _, fromDomain := s.resolveSite("/", r.Host); fromDomain && rslug == site.Slug {
+			redirectPath = "/admin"
+		}
+		http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 		return
 	}
 
@@ -395,7 +434,8 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 }
 
 // handleAdminEditor serves the editor UI
-func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site *db.Site) {
+func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site *db.Site, onOwnDomain ...bool) {
+	ownDomain := len(onOwnDomain) > 0 && onOwnDomain[0]
 	// Determine user role from session cookie
 	userRole := "viewer"
 	if sessionCookie, err := r.Cookie("sl_admin_session"); err == nil {
@@ -487,8 +527,8 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 	<div style="display:flex;align-items:center;gap:.75rem">
 		<span id="auth-state" style="font-size:.8rem;color:var(--muted)">` + userRole + ` &middot; </span>
 		<a href="javascript:logout()" style="color:var(--muted);text-decoration:none;font-size:.85rem">Logout</a>
-		<a href="/admin" style="color:var(--muted);text-decoration:none;font-size:.85rem">Dashboard</a>
-		<a href="/` + site.Slug + `" target="_blank">View site &rarr;</a>
+		` + func() string { if ownDomain { return "" } else { return `<a href="/admin" style="color:var(--muted);text-decoration:none;font-size:.85rem">Dashboard</a>` } }() + `
+		<a href="` + func() string { if ownDomain { return "/" } else { return "/" + site.Slug } }() + `" target="_blank">View site &rarr;</a>
 		<button onclick="shareAuthUrl()" style="background:none;border:1px solid var(--border);border-radius:4px;padding:.25rem .5rem;cursor:pointer;font-size:.8rem;color:var(--muted)">Share</button>
 	</div>
 </div>
@@ -507,6 +547,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 <script>
 const slug='` + site.Slug + `';
 const userRole='` + userRole + `';
+const ownDomain=` + func() string { if ownDomain { return "true" } else { return "false" } }() + `;
 var _etags={};
 function _etagFor(file){return _etags[file]||'';}
 function _handleSaveResponse(r,file){return r.json().then(function(d){
@@ -765,7 +806,7 @@ function renderSubmissions(panel,sec){
 }
 
 function checkAuth(){var c=document.cookie.match('(^|; )sl_admin_session=([^;]*)');if(c){document.getElementById('auth-state').textContent='Logged in';}}
-function logout(){location.href='/admin/logout?slug='+slug;}
+function logout(){location.href=ownDomain?'/admin/logout':'/admin/logout?slug='+slug;}
 
 function shareAuthUrl(){
 	var email=(document.getElementById('auth-state')||{}).textContent||'';
@@ -776,7 +817,7 @@ function shareAuthUrl(){
 	if(s)try{pwd=JSON.parse(s).p||'';}catch(e){}
 	if(!pwd){var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');var a=accts.find(function(x){return x.e===email});if(a)pwd=a.p||'';}
 	if(!email||!pwd){toast('No saved credentials to share');return;}
-	var url=location.origin+'/admin/'+slug+'?auth='+btoa(email+':'+pwd);
+	var url=location.origin+(ownDomain?'/admin':'/admin/'+slug)+'?auth='+btoa(email+':'+pwd);
 	navigator.clipboard.writeText(url).then(function(){toast('Auth URL copied!');});
 }
 

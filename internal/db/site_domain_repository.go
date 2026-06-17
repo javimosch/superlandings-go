@@ -50,8 +50,12 @@ func (r *SiteDomainRepository) GetBySiteID(siteID string) ([]SiteDomain, error) 
 	var domains []SiteDomain
 	for rows.Next() {
 		var d SiteDomain
-		if err := rows.Scan(&d.ID, &d.SiteID, &d.Domain, &d.IP, &d.Traefik, &d.CreatedAt); err != nil {
+		var ip sql.NullString
+		if err := rows.Scan(&d.ID, &d.SiteID, &d.Domain, &ip, &d.Traefik, &d.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan site domain: %w", err)
+		}
+		if ip.Valid {
+			d.IP = ip.String
 		}
 		domains = append(domains, d)
 	}
@@ -66,12 +70,16 @@ func (r *SiteDomainRepository) GetByDomain(domain string) (*SiteDomain, error) {
 			  WHERE domain = ?`
 
 	var d SiteDomain
-	err := DB.QueryRow(query, domain).Scan(&d.ID, &d.SiteID, &d.Domain, &d.IP, &d.Traefik, &d.CreatedAt)
+	var ip sql.NullString
+	err := DB.QueryRow(query, domain).Scan(&d.ID, &d.SiteID, &d.Domain, &ip, &d.Traefik, &d.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query site domain: %w", err)
+	}
+	if ip.Valid {
+		d.IP = ip.String
 	}
 
 	return &d, nil
