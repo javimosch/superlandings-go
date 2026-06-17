@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -116,6 +117,14 @@ func (c *RemoteClient) WriteFile(siteSlug, version, file, content string) (map[s
 		"content":  content,
 	}
 	return c.postJSON("/api/sites/"+siteSlug+"/write", payload)
+}
+
+func (c *RemoteClient) UploadAsset(siteSlug, assetPath string, data []byte) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"path": assetPath,
+		"data": base64.StdEncoding.EncodeToString(data),
+	}
+	return c.postJSON("/api/sites/"+siteSlug+"/upload", payload)
 }
 
 func (c *RemoteClient) SyncSite(slug string, payload map[string]interface{}) (map[string]interface{}, error) {

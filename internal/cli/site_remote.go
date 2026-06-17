@@ -133,3 +133,15 @@ func handleRemoteDNSRemove(target string, args []string) {
 	data, _ := json.Marshal(result)
 	writeJSON(map[string]interface{}{"version": "1.0", "result": json.RawMessage(data)})
 }
+
+func handleRemoteSiteUpload(target string, siteSlug, assetPath string, data []byte) {
+	client, err := NewRemoteClientFromTarget(target)
+	if err != nil {
+		fail(ExitInvalidInput, err.Error())
+	}
+	result, err := client.UploadAsset(siteSlug, assetPath, data)
+	if err != nil {
+		fail(ExitExtFailed, err.Error())
+	}
+	writeJSON(map[string]interface{}{"version": "1.0", "result": result})
+}

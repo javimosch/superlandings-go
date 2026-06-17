@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -235,6 +236,8 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 		s.handleAPISiteDNS(w, r, slug)
 	case "write":
 		s.handleAPISiteWrite(w, r, slug)
+	case "upload":
+		s.handleAPISiteUpload(w, r, slug)
 	case "files":
 		// Check if it's a file read: /sites/{slug}/files/{file}
 		if len(parts) > 2 {
@@ -572,6 +575,51 @@ func (s *Server) handleAPISiteWrite(w http.ResponseWriter, r *http.Request, slug
 	
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"success":true}`))
+}
+
+func (s *Server) handleAPISiteUpload(w http.ResponseWriter, r *http.Request, slug string) {
+	var payload struct {
+		Path string `json:"path"`
+		Data string `json:"data"` // base64-encoded
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"success":false,"error":"invalid request body"}`))
+		return
+	}
+
+	if payload.Path == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"success":false,"error":"path is required"}`))
+		return
+	}
+	if payload.Data == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"success":false,"error":"data is required"}`))
+		return
+	}
+
+	data, err := base64.StdEncoding.DecodeString(payload.Data)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"success":false,"error":"invalid base64 data"}`))
+		return
+	}
+
+	if err := s.siteService.UploadAsset(slug, payload.Path, data); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(fmt.Sprintf(`{"success":false,"error":%q}`, err.Error())))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(fmt.Sprintf(`{"success":true,"path":%q,"size":%d}`, payload.Path, len(data))))
 }
 
 // authMiddleware validates Bearer token authentication

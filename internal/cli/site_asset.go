@@ -21,10 +21,7 @@ instantly affects all versions.`,
   sl-cli site upload my-site "js/app.js" --file ./app.js`,
 	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := initializeDB(); err != nil {
-			fail(ExitExtFailed, "database init: "+err.Error())
-		}
-		defer db.Close()
+		target, _ := cmd.Flags().GetString("target")
 
 		filePath, _ := cmd.Flags().GetString("file")
 		if filePath == "" {
@@ -35,6 +32,16 @@ instantly affects all versions.`,
 		if err != nil {
 			fail(ExitInvalidInput, fmt.Sprintf("reading file: %v", err))
 		}
+
+		if target != "" {
+			handleRemoteSiteUpload(target, args[0], args[1], data)
+			return
+		}
+
+		if err := initializeDB(); err != nil {
+			fail(ExitExtFailed, "database init: "+err.Error())
+		}
+		defer db.Close()
 
 		service := services.NewSiteService(cfg)
 		if err := service.UploadAsset(args[0], args[1], data); err != nil {
@@ -51,5 +58,6 @@ instantly affects all versions.`,
 
 func init() {
 	siteUploadCmd.Flags().String("file", "", "Local file path to upload")
+	siteUploadCmd.Flags().String("target", "", "Remote target (host:port)")
 	siteCmd.AddCommand(siteUploadCmd)
 }
