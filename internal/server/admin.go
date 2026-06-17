@@ -472,6 +472,7 @@ function _handleSaveResponse(r,file){return r.json().then(function(d){
 });}
 const schema=JSON.parse(document.getElementById('admin-schema').textContent);
 const sects=schema.sections||[];
+sects.push({title:'Versions',type:'versions'});
 let easyMDE=null,currentPost=null;
 
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
@@ -489,6 +490,7 @@ function buildUI(){
 		if(s.type==='markdown') renderMarkdown(p,s);
 		else if(s.type==='form') renderForm(p,s);
 		else if(s.type==='submissions') renderSubmissions(p,s);
+		else if(s.type==='versions') renderVersions(p,s);
 	});
 }
 
@@ -574,6 +576,39 @@ function deletePost(){if(userRole!=="admin"){toast("Only admins can delete");ret
 }
 
 function newPost(){if(easyMDE)easyMDE.value('');document.getElementById('post-title').value='';document.getElementById('post-author').value='';document.getElementById('post-date').value=new Date().toISOString().slice(0,10);document.getElementById('post-time').value='3 min';document.getElementById('post-published').checked=true;document.getElementById('blog-editor-area').style.display='flex';currentPost=null;setTimeout(function(){document.getElementById('post-title').focus()},100);}
+
+/* === VERSIONS SECTION === */
+function renderVersions(panel,sec){
+	panel.innerHTML='<div style="padding:1.5rem"><h3 style="margin-bottom:1rem">Version History</h3><div id="versions-table"><p style="color:var(--muted)">Loading...</p></div></div>';
+	loadVersions();
+}
+
+function loadVersions(){
+	fetch('/api/sites/'+slug+'/versions').then(function(r){return r.json()}).then(function(d){
+		var vers=d.versions||[];
+		var html='<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:.5rem;border-bottom:2px solid var(--border)">Version</th><th style="text-align:left;padding:.5rem;border-bottom:2px solid var(--border)">Date</th><th style="text-align:left;padding:.5rem;border-bottom:2px solid var(--border)">Comment</th><th style="text-align:right;padding:.5rem;border-bottom:2px solid var(--border)">Actions</th></tr></thead><tbody>';
+		vers.forEach(function(v){
+			var badge=v.is_active?'<span style="background:#059669;color:#fff;padding:1px 6px;border-radius:3px;font-size:.7rem;margin-left:.4rem">active</span>':'';
+			if(v.orphaned)badge='<span style="background:#6c757d;color:#fff;padding:1px 6px;border-radius:3px;font-size:.7rem;margin-left:.4rem">orphaned</span>';
+			html+='<tr style="border-bottom:1px solid var(--border)"><td style="padding:.5rem"><code style="font-size:.85rem">'+v.version+'</code>'+badge+'</td><td style="padding:.5rem;color:var(--muted);font-size:.85rem">'+v.created_at+'</td><td style="padding:.5rem;color:var(--muted);font-size:.85rem">'+v.comment+'</td><td style="padding:.5rem;text-align:right">';
+			if(!v.is_active&&!v.orphaned){
+				html+='<button class="btn btn-sm btn-primary" onclick="rollbackTo(\''+v.version+'\')" style="font-size:.75rem">Rollback</button>';
+			}
+			html+='</td></tr>';
+		});
+		html+='</tbody></table>';
+		document.getElementById('versions-table').innerHTML=html;
+	});
+}
+
+function rollbackTo(ver){
+	if(!confirm('Rollback to version '+ver+'? Versions after this will be orphaned.'))return;
+	fetch('/api/sites/'+slug+'/versions/switch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:ver})})
+	.then(function(r){return r.json()}).then(function(d){
+		if(d.success){toast('Rolled back to '+ver);loadVersions();}
+		else{toast('Rollback failed');}
+	});
+}
 
 // === FORM SECTION ===
 function renderForm(panel,sec){

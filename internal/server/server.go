@@ -334,8 +334,8 @@ func (s *Server) handleAPISiteVersions(w http.ResponseWriter, r *http.Request, s
 			if i > 0 {
 				json += ","
 			}
-			json += fmt.Sprintf(`{"version":"%s","comment":"%s","is_active":%t,"path":"%s"}`,
-				v.Version, v.Comment, v.IsActive, v.Path)
+			json += fmt.Sprintf(`{"version":"%s","comment":"%s","is_active":%t,"orphaned":%t,"created_at":"%s"}`,
+				v.Version, v.Comment, v.IsActive, v.Orphaned, v.CreatedAt.Format("2006-01-02 15:04"))
 		}
 		json += "]}"
 		w.Write([]byte(json))
