@@ -141,7 +141,7 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 	<div class="login-box">
 		<h2>Login to ` + site.Name + `</h2>
 		<form method="POST">
-			<input type="email" name="email" placeholder="Email" required>
+			<input type="text" name="email" placeholder="Email" required>
 			<input type="password" name="password" placeholder="Password" required>
 			<button type="submit">Login</button>
 		</form>
@@ -179,7 +179,7 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 	<div class="login-box">
 		<h2>Login to ` + site.Name + `</h2>
 		<form method="POST">
-			<input type="email" name="email" placeholder="Email" required>
+			<input type="text" name="email" placeholder="Email" required>
 			<input type="password" name="password" placeholder="Password" required>
 			<button type="submit">Login</button>
 			<div class="error">Invalid email or password</div>
