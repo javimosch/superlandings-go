@@ -1327,8 +1327,13 @@ function switchAccount(){
 function useAccount(i){
 	var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');
 	var a=accts[i];
-	localStorage.setItem('sl_creds_dashboard',JSON.stringify({e:a.e,p:a.p||''}));
-	location.href='/admin/logout'; // server-side cookie clear + redirect
+	if(!a.p){localStorage.setItem('sl_creds_dashboard',JSON.stringify({e:a.e,p:''}));location.href='/admin/logout';return;}
+	// Auto-login via POST
+	fetch('/admin',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'email='+encodeURIComponent(a.e)+'&password='+encodeURIComponent(a.p)})
+	.then(function(r){
+		if(r.ok){localStorage.setItem('sl_creds_dashboard',JSON.stringify({e:a.e,p:a.p}));location.href='/admin';}
+		else{location.href='/admin/logout';}
+	});
 }
 </script>
 </body>
