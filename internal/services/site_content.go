@@ -368,6 +368,13 @@ func (s *SiteService) DiscoverBlogPosts(siteSlug string) ([]map[string]interface
 			json.Unmarshal(data, &metadata)
 		}
 
+		// Skip drafts (published: false explicitly)
+		if published, ok := metadata["published"]; ok {
+			if pub, ok := published.(bool); ok && !pub {
+				continue
+			}
+		}
+
 		// Set default title from slug if not in metadata
 		if _, ok := metadata["title"]; !ok {
 			metadata["title"] = strings.ReplaceAll(slug, "-", " ")

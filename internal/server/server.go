@@ -244,13 +244,15 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 	case "assets":
 		s.handleAPISiteAssets(w, r, slug)
 	case "files":
-		// Check if it's a file read: /sites/{slug}/files/{file}
 		if len(parts) > 2 {
 			filePath := strings.Join(parts[2:], "/")
+			if r.Method == "DELETE" {
+				s.handleAdminAPIFileDelete(w, r, slug, filePath)
+				return
+			}
 			s.handleAdminAPIFileRead(w, r, slug, filePath)
 			return
 		}
-		// Otherwise list files
 		s.handleAdminAPIFiles(w, r, slug)
 	case "admin":
 		s.handleAPISiteAdmin(w, r)

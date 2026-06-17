@@ -330,7 +330,7 @@ function showSection(i){
 
 /* === MARKDOWN SECTION === */
 function renderMarkdown(panel,sec){
-	panel.innerHTML='<div style="display:flex;flex:1;overflow:hidden"><div id="blog-editor-area" style="display:none;flex:1;flex-direction:column;overflow:hidden"><div class="editor-toolbar"><input type="text" id="post-title" placeholder="Post title..." style="flex:1"><input type="text" id="post-author" class="meta" placeholder="Author" style="max-width:180px"><input type="text" id="post-date" class="meta" placeholder="Date" style="max-width:140px"><input type="text" id="post-time" class="meta" placeholder="Read time" style="max-width:90px"><label style="font-size:.8rem;display:flex;align-items:center;gap:.3rem;white-space:nowrap"><input type="checkbox" id="post-published" checked> Published</label><button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button><button class="btn btn-outline btn-sm" onclick="deletePost()" style="color:#dc2626">Delete</button></div><textarea id="markdown-editor"></textarea></div><div class="sidebar" style="border-left:1px solid var(--border);border-right:none"><h2>Posts</h2><ul class="post-list" id="post-list"></ul><button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button></div></div>';
+	panel.innerHTML='<div style="display:flex;flex:1;overflow:hidden"><div id="blog-editor-area" style="display:none;flex:1;flex-direction:column;overflow:hidden"><div style="padding:.75rem 1.5rem;background:var(--card);border-bottom:1px solid var(--border)"><input type="text" id="post-title" placeholder="Post title..." style="width:100%;border:none;font-size:1.1rem;font-weight:600;outline:none;background:transparent;color:var(--text);margin-bottom:.5rem"><div style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap"><div style="display:flex;flex-direction:column;gap:.15rem"><small style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">Author</small><input id="post-author" class="meta" placeholder="Name" style="width:150px;border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;font-size:.85rem;outline:none;background:var(--card);color:var(--text)"></div><div style="display:flex;flex-direction:column;gap:.15rem"><small style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">Date</small><input id="post-date" class="meta" placeholder="2026-01-01" style="width:130px;border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;font-size:.85rem;outline:none;background:var(--card);color:var(--text)"></div><div style="display:flex;flex-direction:column;gap:.15rem"><small style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">Read</small><input id="post-time" class="meta" placeholder="4 min" style="width:80px;border:1px solid var(--border);border-radius:6px;padding:.35rem .5rem;font-size:.85rem;outline:none;background:var(--card);color:var(--text)"></div><label style="display:flex;align-items:center;gap:.3rem;font-size:.8rem;white-space:nowrap"><input type="checkbox" id="post-published" checked> Published</label><button class="btn btn-primary btn-sm" onclick="savePost()">Publish</button><button class="btn btn-outline btn-sm" onclick="deletePost()" style="color:#dc2626">Delete</button></div></div><textarea id="markdown-editor"></textarea></div><div class="sidebar" style="border-left:1px solid var(--border);border-right:none"><h2>Posts</h2><ul class="post-list" id="post-list"></ul><button class="btn btn-success btn-sm" style="width:100%;margin-top:.5rem" onclick="newPost()">+ New Post</button></div></div>';
 	loadPosts();
 }
 
@@ -395,11 +395,10 @@ function savePost(){
 
 function deletePost(){
 	if(!currentPost){toast('No post selected');return;}
-	if(!confirm('Delete this post?'))return;
+	if(!confirm('Delete this post permanently?'))return;
 	var meta=currentPost+'.data.json';
-	// Remove files by writing empty content (or via remove API)
-	fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:currentPost,content:''})})
-	.then(function(){return fetch('/api/sites/'+slug+'/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file:meta,content:''})})})
+	fetch('/api/sites/'+slug+'/files/'+currentPost,{method:'DELETE'})
+	.then(function(){return fetch('/api/sites/'+slug+'/files/'+meta,{method:'DELETE'})})
 	.then(function(){document.getElementById('blog-editor-area').style.display='none';currentPost=null;loadPosts();toast('Deleted');});
 }
 
@@ -536,6 +535,33 @@ func (s *Server) handleAdminAPIFileRead(w http.ResponseWriter, r *http.Request, 
 		"content": string(content),
 		"is_markdown": strings.HasSuffix(filePath, ".md"),
 	})
+}
+
+// handleAdminAPIFileDelete deletes a file from the active version
+func (s *Server) handleAdminAPIFileDelete(w http.ResponseWriter, r *http.Request, siteSlug, filePath string) {
+	siteRepo := db.NewSiteRepository()
+	site, err := siteRepo.GetBySlug(siteSlug)
+	if err != nil {
+		http.Error(w, "Site not found", http.StatusNotFound)
+		return
+	}
+
+	cfg, _ := config.Load()
+	versionRepo := db.NewSiteVersionRepository()
+	version, err := versionRepo.GetActiveVersion(site.ID)
+	if err != nil {
+		http.Error(w, "No active version", http.StatusNotFound)
+		return
+	}
+
+	fullPath := filepath.Join(cfg.SitesDir, site.Slug, version.Version, filePath)
+	if err := os.Remove(fullPath); err != nil {
+		http.Error(w, "Failed to delete file", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
 }
 
 // handleAPIUsers handles user API operations
