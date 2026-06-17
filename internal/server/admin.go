@@ -268,6 +268,22 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 		var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');var found=accts.findIndex(function(a){return a.e===entry.e});if(found>=0)accts[found]=entry;else accts.push(entry);localStorage.setItem('sl_accounts',JSON.stringify(accts));}
 		});
 	})();
+// Auto-login from ?auth=
+(function(){
+	var m=location.search.match(/[?&]auth=([^&]+)/);
+	if(!m)return;
+	var auth=atob(decodeURIComponent(m[1]));
+	var idx=auth.indexOf(':');
+	if(idx<0)return;
+	var email=auth.slice(0,idx),pwd=auth.slice(idx+1);
+	document.getElementById('login-email').value=email;
+	document.getElementById('login-password').value=pwd;
+	localStorage.setItem('sl_creds_` + site.Slug + `',JSON.stringify({e:email,p:pwd}));
+	var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');
+	if(!accts.find(function(a){return a.e===email}))accts.push({e:email,p:pwd});
+	localStorage.setItem('sl_accounts',JSON.stringify(accts));
+	document.getElementById('login-form').submit();
+})();
 	</script>
 </body>
 </html>`
