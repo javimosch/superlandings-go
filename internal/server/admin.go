@@ -281,7 +281,7 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 		.section-btn{display:block;width:100%;text-align:left;padding:.5rem .75rem;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:.875rem;color:var(--text);font-weight:500;transition:background .15s}
 		.section-btn:hover,.section-btn.active{background:#eff6ff;color:var(--primary)}
 		.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-		.section-panel{flex:1;display:none;flex-direction:column;overflow:hidden}
+		.section-panel{flex:1;display:none;flex-direction:column;overflow:auto}
 		.section-panel.active{display:flex}
 		/* Empty */
 		.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);padding:2rem;text-align:center}
