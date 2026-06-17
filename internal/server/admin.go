@@ -186,8 +186,13 @@ func (s *Server) handleAdminLogout(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/"+slug, http.StatusSeeOther)
 		return
 	}
+	// Clear both /admin and /admin/{slug} cookies (domain may have either)
 	cookie.Path = "/admin"
 	http.SetCookie(w, cookie)
+	if rs, _, fd := s.resolveSite("/", r.Host); fd && rs != "" {
+		cookie2 := &http.Cookie{Name: "sl_admin_session", Value: "", MaxAge: -1, HttpOnly: true, Path: "/admin/" + rs}
+		http.SetCookie(w, cookie2)
+	}
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
