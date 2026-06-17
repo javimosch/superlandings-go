@@ -143,7 +143,7 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request, site *
 		<form method="POST" id="login-form">
 			<input type="text" name="email" id="login-email" placeholder="Email" required>
 			<input type="password" name="password" id="login-password" placeholder="Password" required>
-			<label style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;margin:.5rem 0;cursor:pointer"><input type="checkbox" id="remember-me"> Se souvenir de moi</label>
+			<label style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;margin:.5rem 0;cursor:pointer;justify-content:flex-start"><input type="checkbox" id="remember-me" style="width:auto;margin:0;flex-shrink:0"> Se souvenir de moi</label>
 			<button type="submit">Login</button>
 		</form>
 	</div>
