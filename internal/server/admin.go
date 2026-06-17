@@ -270,8 +270,8 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 		.post-list li .tt{font-weight:500}.post-list li .tag{font-size:.65rem;background:#e0f2fe;color:#0284c7;padding:.15rem .35rem;border-radius:3px}
 		/* Buttons */
 		.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem 1rem;border-radius:6px;font-size:.875rem;font-weight:500;border:none;cursor:pointer;transition:all .15s}
-		.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:#1d4ed8}
-		.btn-success{background:#059669;color:#fff}.btn-success:hover{background:#047857}
+		.btn-primary{background:var(--primary)!important;color:#fff!important}.btn-primary:hover{background:#1d4ed8!important}
+		.btn-success{background:#059669!important;color:#fff!important}.btn-success:hover{background:#047857!important}
 		.btn-sm{padding:.35rem .75rem;font-size:.8rem}
 		.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#065f46;color:#fff;padding:.75rem 1.25rem;border-radius:8px;font-size:.875rem;box-shadow:0 4px 12px rgba(0,0,0,.15);opacity:0;transform:translateY(10px);transition:all .3s;z-index:200}
 		.toast.show{opacity:1;transform:translateY(0)}
