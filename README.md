@@ -37,7 +37,8 @@ curl http://localhost:3099/my-site/
 👉 **No Docker, no Node, no MongoDB** — compiled Go binary + SQLite
 👉 **Shared assets** — images, CSS, JS stored once, shared across versions
 👉 **{{asset "file"}}** — template helper resolves assets by filename
-👉 **Domain-aware** — serves from Host header, no Traefik path rewriting needed
+👉 **Admin panel** — schema-driven UI, blog editor (EasyMDE), raw HTML (CodeMirror), form editor
+👉 **Domain-aware** — serves from Host header, including root path
 👉 **Remote execution** — all commands support `--target <host:port>`
 
 ## Quick Start
@@ -68,9 +69,14 @@ sl-cli site upload site "logo.png" --file ./logo.png
 sl-cli site assets list site
 sl-cli site assets remove site "path/asset.png"
 
+# Admin
+sl-cli site admin create <site>           # Generate token
+sl-cli site admin configure <site> --auto-detect  # Generate schema
+sl-cli user create --email user --password pass  # Create user
+sl-cli user grant <site> <email>          # Grant site access
+
 # Templates
 # {{>include "nav.html"}}        — recursive include
-# {{>layout "layout.html"}}      — layout wrapper
 # {{.variable}} / {{if}}/{{range}} — Go template
 # {{asset "logo.png"}}           — resolve asset by filename
 
@@ -85,6 +91,40 @@ sl-cli site upload site "img.png" --file ./img.png --target dk2
 sl-cli backend start --daemon --port 3099
 sl-cli backend stop
 sl-cli backend status
+```
+
+## Admin Panel
+
+The admin panel is **opt-in** and **schema-driven**. Enable it per site:
+
+### Auth Modes
+| Mode | URL | Behavior |
+|------|-----|----------|
+| `none` (default) | `/admin/{slug}/{token}` | Token-gated, no login |
+| `password` | `/admin/{slug}` | Login form, JWT sessions, logout |
+
+### Editor Types
+| Section | Use Case | Editor |
+|---------|----------|--------|
+| `form` + `.html` source | Raw HTML files | CodeMirror (syntax highlight, line numbers) |
+| `form` + `.data.json` source | Template data fields | Form fields (text, textarea) |
+| `markdown` + `blog` dir | Blog posts | EasyMDE (markdown, metadata, drafts) |
+
+### Schema Example
+```json
+{
+  "auth": "password",
+  "sections": [
+    {"title":"Page","type":"form","source":"index.html.data.json","fields":[
+      {"key":"hero_title","label":"Hero Title","type":"text"}
+    ]},
+    {"title":"Blog","type":"markdown","source":"blog"},
+    {"title":"HTML","type":"form","source":"index.html",
+     "layout":{"editorHeight":"calc(90vh - 50px)"},"fields":[
+      {"key":"_raw_html","label":"Full HTML","type":"textarea"}
+    ]}
+  ]
+}
 ```
 
 ## Architecture
@@ -141,7 +181,7 @@ sl-cli backend status
 | Daemon + systemd | ✅ |
 | DNS/Traefik (via hotify-cli) | ✅ |
 | Legacy landing support | ✅ |
-| Blog module | 🔜 |
+| Blog module | ✅ |
 | Multi-tenancy | 🔜 |
 
 ## Build & Install

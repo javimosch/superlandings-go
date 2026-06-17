@@ -1,35 +1,20 @@
 ---
 name: sl-cli-mastery
-description: Create a complete landing page with assets, templates, and includes in under 60 seconds
+description: Create sites with templates, assets, blog, admin panel — full mastery guide
 ---
 
-# sl-cli Mastery — Full Landing in <60s
+# sl-cli Mastery
 
-## 60-Second Landing Recipe
+## Quick Site (60s)
 
 ```bash
-# 1. Create site + version (5s)
 sl-cli site create --name "My Site" --slug "my-site"
 sl-cli site version create my-site --version "v1"
-
-# 2. Upload assets (10s)
 sl-cli site upload my-site "logo.png" --file ./logo.png
-sl-cli site upload my-site "style.css" --file ./style.css
-
-# 3. Write templates (30s)
-sl-cli site write my-site v1 "nav.html" --content '<nav>{{asset "logo.png"}}<a href="/">Home</a></nav>'
-sl-cli site write my-site v1 "index.html" --content '{{>include "nav.html"}}<h1>{{.title}}</h1>{{asset "banner.jpg"}}'
-sl-cli site write my-site v1 "footer.html" --content '<footer>© {{.year}}</footer>'
-
-# 4. Write data file (5s)
-echo '{"title":"My Site","year":"2026"}' > ~/.superlandings/sites/my-site/v1/index.html.data.json
-
-# 5. Serve (5s)
+sl-cli site write my-site v1 "index.html" --content '{{>include "nav.html"}}<h1>{{.title}}</h1>{{asset "logo.png"}}'
+echo '{"title":"My Site"}' > ~/.superlandings/sites/my-site/v1/index.html.data.json
 sl-cli backend start --daemon --port 3099 --no-systemd
-curl http://localhost:3099/my-site/
 ```
-
-Total: **~55 seconds** from zero to live site.
 
 ## Template System
 
@@ -56,51 +41,36 @@ Total: **~55 seconds** from zero to live site.
 {{range .items}}<p>{{.name}}</p>{{end}}
 ```
 
-### Common Patterns
+### Admin Panel
 
-```html
-<!-- Auto-discovered navigation -->
-{{range .nav_pages}}<a href="/my-site/{{.slug}}">{{.title}}</a>{{end}}
-
-<!-- Auto-discovered blog posts -->
-{{range .blog_posts}}<h2>{{.title}}</h2>{{end}}
-
-<!-- Auto-injected root path -->
-<a href="{{.root}}/page">link</a>
-
-<!-- Auto-injected brand name -->
-<div class="brand">{{.brand}}</div>
-```
-
-## Asset CRUD
+**Enable per site via `admin-schema.json`** (at site level, not in version dir):
 
 ```bash
-sl-cli site upload <site> "<path>" --file <local>    # create / replace
-sl-cli site assets list <site>                        # list
-sl-cli site assets remove <site> "<path>"             # delete
+sl-cli site admin configure <site> --auto-detect  # auto-generate schema
+sl-cli site admin create <site>                    # generate token
+sl-cli user create --email admin --password pass   # create user
+sl-cli user grant <site> admin                     # grant access
 ```
 
-All operations support `--target <host:port>` for remote execution.
+### Auth Modes
+- `"auth": "none"` — `/admin/{slug}/{token}`, tokens never expire
+- `"auth": "password"` — `/admin/{slug}` shows login form, JWT sessions, logout
 
-## Remote Execution
+### Editor Types
+- **Raw HTML**: `"type": "form"`, `source: "*.html"` → CodeMirror (configurable `layout.editorHeight`)
+- **Form fields**: `"type": "form"`, `source: "*.data.json"` → text/textarea for non-technical users
+- **Blog**: `"type": "markdown"`, `source: "blog"` → EasyMDE editor with metadata, drafts, delete
+
+## Blog Module
 
 ```bash
-# Add target once
-sl-cli targets add --name dk2 --host <IP> --port 3100 --token <TOKEN>
-
-# Then any command works remotely
-sl-cli site list --target dk2
-sl-cli site upload my-site "img.png" --file ./img.png --target dk2
-sl-cli site assets list my-site --target dk2
+mkdir -p ~/.superlandings/sites/{slug}/v1/blog
+# Write post.md + post.md.data.json {"title":"...","published":true}
+# Add {{>include "blog-preview.html"}} to your index.html
+# Create layout.html for blog post styling (nav, footer, CSS)
 ```
 
-## Serving Modes
-
-| URL | How it resolves |
-|-----|----------------|
-| `localhost:3099/slug/path` | Path-based: slug from URL |
-| `domain.com/path` | Host header lookup in `site_domains` table |
-| Direct port | `http://<IP>:3100/slug/path` |
+Posts auto-discovered from `blog/*.md`. Drafts hidden (`published:false`). Metadata: `title`, `author`, `date`, `reading_time`.
 
 ## Key Pitfalls
 

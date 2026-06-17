@@ -7,9 +7,11 @@ This document helps AI agents work with the SuperLandings Go codebase.
 Go port of SuperLandings with:
 - Single binary deployment
 - SQLite (metadata) + file system (content)
-- Agent-first CLI: all commands output JSON by default
-- Dynamic blocks and Go templates
-- File system-based versioning
+- Agent-first CLI: all commands output JSON by default with semantic exit codes
+- Dynamic blocks, Go templates, shared assets (`{{asset}}`)
+- File system-based versioning, instant rollback
+- Schema-driven admin panel (blog editor, raw HTML editor, form editor)
+- Domain-aware serving via Host header (including root path)
 
 ## Tech Stack
 
@@ -38,15 +40,9 @@ find ./internal -name "*.go" -exec wc -l {} +
 
 ```
 superlandings-go/
-├── cmd/sl-cli/main.go          # CLI entry
-├── internal/cli/               # CLI commands (max 400 LOC)
-├── internal/config/            # Config (max 400 LOC)
-├── internal/daemon/            # Daemon (max 400 LOC)
-├── internal/db/                # Database (max 400 LOC each)
-├── internal/server/            # HTTP server (max 400 LOC)
-├── internal/services/          # Business logic (max 400 LOC each)
-├── docs/                       # Documentation (max 250 LOC each)
-└── .agents/skills/             # Local skills (max 300 LOC each)
+├── cmd/sl-cli/main.go
+├── internal/cli/ server/ services/ db/ daemon/ config/
+├── docs/ .agents/skills/
 ```
 
 ## CLI Cheatsheet
@@ -126,7 +122,28 @@ Data: `index.html.data.json`:
 
 ### Domain-Aware Serving
 
-When accessed via a domain (e.g., `test-site.intrane.fr/path`), the daemon looks up the `Host` header in `site_domains`, resolves the site slug, and serves content. No Traefik middleware needed.
+Host header in `site_domains` resolves slug, serves at root path (`/`). No Traefik path-rewrite needed.
+
+### Admin Panel (`/admin/{slug}`)
+
+Schema-driven (`admin-schema.json` at site level), html-embedded, stateless:
+
+| Auth | Mode | URL |
+|------|------|-----|
+| `none` | Token-gated (never expires) | `/admin/{slug}/{token}` |
+| `password` | Login form, JWT, logout | `/admin/{slug}` |
+
+| Section | Use case | Editor |
+|---------|----------|--------|
+| `form` + `.html` | Raw HTML | CodeMirror (line numbers, highlight, config height) |
+| `form` + `.data.json` | Editable fields | Text/textarea inputs (non-technical) |
+| `markdown` + `blog` | Blog posts | EasyMDE (metadata, drafts, delete) |
+
+Users: `sl-cli user create` + `sl-cli user grant <site> <email>`. Login field is `type="text"`.
+
+### Blog Module
+
+Posts auto-discovered from `blog/*.md` + `.md.data.json`. Drafts hidden (`published:false`). Template includes: `{{>include "blog-preview.html"}}`. Blog posts wrapped in `layout.html` for site styling. Delete via `DELETE /api/sites/{slug}/files/{path}`.
 
 ## Architecture Decisions
 
@@ -146,16 +163,24 @@ When accessed via a domain (e.g., `test-site.intrane.fr/path`), the daemon looks
 - `/health` — Health check
 
 ### Serving Logic
-1. Attempt to serve as site (dynamic blocks + Go templates)
-2. Fall back to landing
-3. Return 404 if not found
+Site (Go templates + includes) → landing fallback → 404.
 
 ### File System Layout
 
 ```
 ~/.superlandings/
 ├── db.sql
-├── sites/{slug}/{version}/{files}
+├── sites/{slug}/
+│   ├── assets/               # Shared across versions
+│   ├── admin-schema.json      # Site-level admin config
+│   └── {version}/
+│       ├── index.html
+│       ├── index.html.data.json
+│       ├── layout.html         # Blog post wrapper
+│       ├── blog-preview.html   # Blog preview include
+│       └── blog/
+│           ├── post.md
+│           └── post.md.data.json
 ├── sl-cli.pid
 └── sl-cli.log
 ```
@@ -183,57 +208,33 @@ Create/update skills under `~/.agents/skills/` for recurring patterns. Keep them
 
 ## Common Workflows
 
-### Adding CLI Command
-1. File in `internal/cli/` → register in `root.go`
-2. Logic in `internal/services/`
-3. DB schema in `internal/db/` if needed
-4. Build + test
-
-### Adding Service
-1. File in `internal/services/`
-2. Repository in `internal/db/repository.go` if needed
-3. Models in `internal/db/models.go` if needed
-4. Wire up in CLI and test
-
-### DB Schema Changes
-1. Update models in `internal/db/models.go` (max 400 LOC)
-2. Add migration to `internal/db/sqlite.go` (max 400 LOC)
-3. Test by deleting `~/.superlandings/db.sql` and restarting
-4. Update repository if needed
-5. Document in AGENTS.md
+- **CLI feature:** file in `internal/cli/` → register in `root.go` → logic in `internal/services/`
+- **DB change:** update models → migration in `sqlite.go` → test `rm ~/.superlandings/db.sql`
+- **Admin panel:** edit `admin.go` embedded HTML/CSS/JS (single file)
+- **Blog:** `blog/*.md` + `.md.data.json` metadata, `layout.html` for styling
 
 ## Testing
 
 ```bash
-go build -o sl-cli ./cmd/sl-cli
-go test ./...
-
-# Quick smoke
-./sl-cli site create --name "Test" --slug "test"
-./sl-cli site version create test --version "v1"
-./sl-cli site write test v1 "index.html" --content "<h1>Test</h1>"
-./sl-cli backend start --daemon --port 3099
-curl http://localhost:3099/test
-./sl-cli backend stop
+go build -o sl-cli ./cmd/sl-cli && go test ./...
+# Smoke: create site, write page, start daemon, curl, stop
 ```
 
 ## Gotchas
 
-**Route order matters:** Register `/api/` BEFORE the catch-all `/`. StripPrefix handlers receive paths WITHOUT the prefix.
-```go
-mux.Handle("/api/", http.StripPrefix("/api", apiMux))
-mux.HandleFunc("/", handleLanding)
-```
+## Gotchas
 
-**No `defer db.Close()` in server start** — closes DB before any requests arrive.
-
-**Template functions before Parse()** — Go's `html/template` requires `.Funcs()` before `.Parse()`.
-
-**Assets shared across versions** — stored in `sites/{slug}/assets/`, not duplicated per version.
-
-**Hotify-cli config** — the daemon user must have the same `~/.hotify/config.json` as the infra user.
-
-**Traefik files** — the daemon user needs write access to `/etc/traefik/*.yml` and passwordless sudo for `systemctl restart traefik`.
+- **Route order:** register `/api/` BEFORE catch-all `/`. StripPrefix handlers see paths WITHOUT prefix.
+- **No `defer db.Close()`** in server start — closes DB before requests arrive.
+- **Template `.Funcs()` before `.Parse()`** — Go requirement.
+- **WAL checkpoint** — call `db.CheckpointWAL()` after token/user writes so daemon sees them.
+- **Domain root path** — `handleLanding` must resolve host for `/` before `handleRoot`.
+- **Admin schema** — `admin-schema.json` at site level, not in version dir.
+- **Toast** — `pointer-events:none` when hidden, `auto` on `.show`.
+- **Login field** — `type="text"` (not email) for non-email usernames.
+- **Shared assets** — in `sites/{slug}/assets/`, not per-version.
+- **Traefik perms** — daemon user needs write to `/etc/traefik/*.yml` + sudo for restart.
+- **Hotify-cli config** — same `~/.hotify/config.json` for daemon and infra user.
 
 ### Daemon
 - PID: `~/.superlandings/sl-cli.pid`, Log: `~/.superlandings/sl-cli.log`
