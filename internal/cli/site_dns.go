@@ -34,6 +34,7 @@ var siteDnsSetupCmd = &cobra.Command{
 		domain, _ := cmd.Flags().GetString("domain")
 		ip, _ := cmd.Flags().GetString("ip")
 		traefik, _ := cmd.Flags().GetBool("traefik")
+		port, _ := cmd.Flags().GetInt("port")
 
 		if domain == "" {
 			fail(ExitMissingFlag, "--domain is required")
@@ -49,7 +50,7 @@ var siteDnsSetupCmd = &cobra.Command{
 		}
 
 		dnsService := services.NewDNSService(cfg)
-		if err := dnsService.SetupDNS(site.ID, site.Slug, domain, ip, traefik); err != nil {
+		if err := dnsService.SetupDNS(site.ID, site.Slug, domain, ip, port, traefik); err != nil {
 			fail(ExitExtFailed, err.Error())
 		}
 
@@ -112,12 +113,17 @@ var siteDnsRemoveCmd = &cobra.Command{
 		}
 		defer db.Close()
 
+		port, _ := cmd.Flags().GetInt("port")
 		dnsService := services.NewDNSService(cfg)
-		if err := dnsService.RemoveDNS(args[0]); err != nil {
+		removed, err := dnsService.RemoveDNS(args[0], port)
+		if err != nil {
 			fail(ExitExtFailed, err.Error())
 		}
-
-		success(fmt.Sprintf("DNS configuration removed for %s", args[0]), nil)
+		if removed == "" {
+			success(fmt.Sprintf("No hotify app for %s on port %d; nothing removed", args[0], port), map[string]interface{}{"removed": false})
+			return
+		}
+		success(fmt.Sprintf("DNS configuration removed for %s", args[0]), map[string]interface{}{"removed": true, "hotify_app": removed})
 	},
 }
 
@@ -126,6 +132,8 @@ func init() {
 	siteDnsSetupCmd.Flags().String("ip", "", "IP address")
 	siteDnsSetupCmd.Flags().Bool("traefik", false, "Setup Traefik routing")
 	siteDnsSetupCmd.Flags().String("target", "", "Remote target (host:port)")
+	siteDnsSetupCmd.Flags().Int("port", 3099, "Port the backend serving the site listens on (local mode)")
+	siteDnsRemoveCmd.Flags().Int("port", 3099, "Port the backend serving the site listens on (local mode)")
 	siteDnsListCmd.Flags().String("target", "", "Remote target (host:port)")
 	siteDnsRemoveCmd.Flags().String("target", "", "Remote target (host:port)")
 

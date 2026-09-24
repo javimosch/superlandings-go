@@ -1,6 +1,8 @@
 package server
 
 import (
+	"strconv"
+	"net"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -70,9 +72,13 @@ func (s *Server) Start(port int) error {
 	mux.HandleFunc("/health", s.handleHealth)
 
 	// Start server
-	addr := fmt.Sprintf(":%d", port)
-	log.Printf("Server starting on http://localhost%s", addr)
-	log.Printf("Landings will be served at http://localhost%s/:slug", addr)
+	addr, err := listenAddr(s.cfg.BindAddr, port, s.cfg.AuthToken)
+	if err != nil {
+		return err
+	}
+	s.cfg.ServerPort = port
+	log.Printf("Server starting on http://%s", addr)
+	log.Printf("Landings will be served at http://%s/:slug", addr)
 
 	return http.ListenAndServe(addr, mux)
 }
@@ -526,7 +532,7 @@ func (s *Server) handleAPISiteDNS(w http.ResponseWriter, r *http.Request, slug s
 				return
 			}
 			
-			if err := dnsService.SetupDNS(site.ID, slug, payload.Domain, payload.IP, payload.Traefik); err != nil {
+			if err := dnsService.SetupDNS(site.ID, slug, payload.Domain, payload.IP, s.cfg.ServerPort, payload.Traefik); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -538,7 +544,7 @@ func (s *Server) handleAPISiteDNS(w http.ResponseWriter, r *http.Request, slug s
 		
 		if action == "remove" {
 			// RemoveDNS removes all DNS for a site via hotify-cli prune
-			if err := dnsService.RemoveDNS(slug); err != nil {
+			if _, err := dnsService.RemoveDNS(slug, s.cfg.ServerPort); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -939,4 +945,20 @@ func contentTypeFor(filePath string) string {
 		}
 	}
 	return "text/html; charset=utf-8"
+}
+
+// listenAddr builds the address to listen on. The API is open when no auth
+// token is set, so that is only allowed on a loopback address: the server used
+// to bind every interface, which made an unset token a public admin API.
+func listenAddr(bind string, port int, authToken string) (string, error) {
+	if bind == "" {
+		bind = "127.0.0.1"
+	}
+	if authToken == "" {
+		ip := net.ParseIP(bind)
+		if bind != "localhost" && (ip == nil || !ip.IsLoopback()) {
+			return "", fmt.Errorf("refusing to serve the API without --auth-token on %s; bind 127.0.0.1 or set a token", bind)
+		}
+	}
+	return net.JoinHostPort(bind, strconv.Itoa(port)), nil
 }

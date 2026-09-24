@@ -26,6 +26,7 @@ var backendStartCmd = &cobra.Command{
 		noSystemd, _ := cmd.Flags().GetBool("no-systemd")
 
 		cfg.AuthToken, _ = cmd.Flags().GetString("auth-token")
+		cfg.BindAddr, _ = cmd.Flags().GetString("bind")
 		cfg.SyncTargetHost, _ = cmd.Flags().GetString("sync-host")
 		cfg.SyncTargetUser, _ = cmd.Flags().GetString("sync-user")
 		cfg.SyncTargetPort, _ = cmd.Flags().GetInt("sync-port")
@@ -148,6 +149,7 @@ func init() {
 	backendStartCmd.Flags().Bool("daemon", false, "Run as daemon in background")
 	backendStartCmd.Flags().Bool("no-systemd", false, "Disable systemd auto-installation")
 	backendStartCmd.Flags().String("auth-token", "", "API authentication token")
+	backendStartCmd.Flags().String("bind", "127.0.0.1", "Address to listen on (non-loopback requires --auth-token)")
 	backendStartCmd.Flags().String("sync-host", "", "Sync target host")
 	backendStartCmd.Flags().String("sync-user", "root", "Sync target SSH user")
 	backendStartCmd.Flags().Int("sync-port", 22, "Sync target SSH port")
@@ -193,7 +195,7 @@ func installAndStartSystemdService(port int, authToken, syncHost, syncUser strin
 		user = "root"
 	}
 
-	cmd := fmt.Sprintf("%s backend start --port=%d", execPath, port)
+	cmd := fmt.Sprintf("%s backend start --port=%d --bind=%s", execPath, port, cfg.BindAddr)
 	if authToken != "" {
 		cmd += fmt.Sprintf(" --auth-token=%s", authToken)
 	}

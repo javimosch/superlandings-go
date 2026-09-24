@@ -31,7 +31,7 @@ func StartDaemon(cfg *config.Config, port int) error {
 	defer logFile.Close()
 
 	// Start daemon process
-	cmd := exec.Command(execPath, "backend", "start", fmt.Sprintf("--port=%d", port))
+	cmd := exec.Command(execPath, "backend", "start", fmt.Sprintf("--port=%d", port), "--bind="+cfg.BindAddr)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 

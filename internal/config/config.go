@@ -15,6 +15,7 @@ type Config struct {
 	LogFile      string
 	UIDir        string // For UI override mode
 	ServerPort   int
+	BindAddr     string // listen address for backend start; empty means 127.0.0.1
 	AuthToken   string // API authentication token
 	// Sync target configuration
 	SyncTargetHost string
