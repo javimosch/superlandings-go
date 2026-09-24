@@ -141,7 +141,7 @@ func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 
 	// Try to serve as a site (with dynamic blocks and sub-paths)
 	if content, err := s.siteService.GetActiveVersionContent(siteSlug, filePath); err == nil {
-		w.Header().Set("Content-Type", "text/html")
+		w.Header().Set("Content-Type", contentTypeFor(filePath))
 		w.Write([]byte(content))
 		return
 	}
@@ -926,4 +926,17 @@ func (s *Server) tryServeAsset(w http.ResponseWriter, r *http.Request, siteSlug,
 	w.Header().Set("Content-Type", ctype)
 	w.Write(data)
 	return true
+}
+
+// contentTypeFor picks the Content-Type for a file served from a site version.
+// Every version file used to go out as text/html, so a stylesheet written with
+// `site write <slug> <v> static/site.css` was refused by browsers (strict MIME
+// checking) and the page rendered unstyled. Pages keep text/html.
+func contentTypeFor(filePath string) string {
+	if ext := filepath.Ext(filePath); ext != "" && ext != ".html" && ext != ".htm" {
+		if t := mime.TypeByExtension(ext); t != "" {
+			return t
+		}
+	}
+	return "text/html; charset=utf-8"
 }
