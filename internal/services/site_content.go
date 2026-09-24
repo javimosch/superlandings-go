@@ -115,7 +115,7 @@ func (s *SiteService) processContent(content, filePath, versionDir, siteSlug, si
 		}
 	}
 
-// Auto-discover blog posts for all pages
+	// Auto-discover blog posts for all pages
 	if _, ok := data["blog_posts"]; !ok {
 		posts, err := s.DiscoverBlogPosts(siteSlug)
 		if err == nil {

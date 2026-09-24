@@ -17,8 +17,8 @@ import (
 
 // VersioningService handles auto-versioning, snapshots, pruning, and etag locking.
 type VersioningService struct {
-	cfg     *config.Config
-	repo    *db.SiteVersionRepository
+	cfg      *config.Config
+	repo     *db.SiteVersionRepository
 	siteRepo *db.SiteRepository
 }
 

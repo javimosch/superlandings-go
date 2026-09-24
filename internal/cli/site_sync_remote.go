@@ -41,8 +41,8 @@ func handleRemoteSiteSync(target, siteSlug string) {
 	}
 
 	writeJSON(map[string]interface{}{
-		"version": "1.0",
-		"success": true,
+		"version":      "1.0",
+		"success":      true,
 		"files_synced": len(files),
 	})
 }

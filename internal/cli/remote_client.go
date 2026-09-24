@@ -42,13 +42,13 @@ func NewRemoteClientFromTarget(targetName string) (*RemoteClient, error) {
 		}
 		return NewRemoteClient(host, port), nil
 	}
-	
+
 	// Load target from config
 	target, err := config.GetTarget(targetName)
 	if err != nil {
 		return nil, fmt.Errorf("target '%s' not found: %w", targetName, err)
 	}
-	
+
 	client := NewRemoteClient(target.Host, target.Port)
 	client.authToken = target.AuthToken
 	return client, nil
@@ -60,7 +60,7 @@ func (c *RemoteClient) GetStatus() (map[string]interface{}, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	return c.parseResponse(resp)
 }
 
@@ -70,7 +70,7 @@ func (c *RemoteClient) ListSites() (map[string]interface{}, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	return c.parseResponse(resp)
 }
 
@@ -80,7 +80,7 @@ func (c *RemoteClient) GetSite(slug string) (map[string]interface{}, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	return c.parseResponse(resp)
 }
 
@@ -90,7 +90,7 @@ func (c *RemoteClient) ListVersions(slug string) (map[string]interface{}, error)
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	return c.parseResponse(resp)
 }
 
@@ -113,8 +113,8 @@ func (c *RemoteClient) SwitchVersion(siteSlug, version string) (map[string]inter
 func (c *RemoteClient) WriteFile(siteSlug, version, file, content string) (map[string]interface{}, error) {
 	payload := map[string]interface{}{
 		"version": version,
-		"file":     file,
-		"content":  content,
+		"file":    file,
+		"content": content,
 	}
 	return c.postJSON("/api/sites/"+siteSlug+"/write", payload)
 }
@@ -171,7 +171,7 @@ func (c *RemoteClient) ListDNS(siteSlug string) (map[string]interface{}, error) 
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	return c.parseResponse(resp)
 }
 
@@ -190,25 +190,25 @@ func (c *RemoteClient) RemoveDNS(siteSlug string) (map[string]interface{}, error
 
 func (c *RemoteClient) makeRequest(method, path string, body []byte) (*http.Response, error) {
 	url := c.baseURL + path
-	
+
 	var req *http.Request
 	var err error
-	
+
 	if body != nil {
 		req, err = http.NewRequest(method, url, bytes.NewReader(body))
 	} else {
 		req, err = http.NewRequest(method, url, nil)
 	}
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Add auth token if configured
 	if c.authToken != "" {
 		req.Header.Set("Authorization", "Bearer "+c.authToken)
 	}
-	
+
 	return c.httpClient.Do(req)
 }
 
@@ -240,12 +240,12 @@ func (c *RemoteClient) postJSON(path string, payload map[string]interface{}) (ma
 	if err != nil {
 		return nil, err
 	}
-	
+
 	resp, err := c.makeRequest("POST", path, jsonData)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	return c.parseResponse(resp)
 }

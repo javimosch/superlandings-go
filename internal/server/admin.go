@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/javimosch/superlandings-go/internal/config"
 	"github.com/javimosch/superlandings-go/internal/db"
 	"github.com/javimosch/superlandings-go/internal/services"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 var jwtSecret = []byte("superlandings-secret-key") // TODO: Move to config
@@ -562,8 +562,20 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 	<div style="display:flex;align-items:center;gap:.75rem">
 		<span id="auth-state" style="font-size:.8rem;color:var(--muted)">` + userRole + ` &middot; </span>
 		<a href="javascript:logout()" style="color:var(--muted);text-decoration:none;font-size:.85rem">Logout</a>
-		` + func() string { if ownDomain { return "" } else { return `<a href="/admin" style="color:var(--muted);text-decoration:none;font-size:.85rem">Dashboard</a>` } }() + `
-		<a href="` + func() string { if ownDomain { return "/" } else { return "/" + site.Slug } }() + `" target="_blank">View site &rarr;</a>
+		` + func() string {
+		if ownDomain {
+			return ""
+		} else {
+			return `<a href="/admin" style="color:var(--muted);text-decoration:none;font-size:.85rem">Dashboard</a>`
+		}
+	}() + `
+		<a href="` + func() string {
+		if ownDomain {
+			return "/"
+		} else {
+			return "/" + site.Slug
+		}
+	}() + `" target="_blank">View site &rarr;</a>
 		<button onclick="shareAuthUrl()" style="background:none;border:1px solid var(--border);border-radius:4px;padding:.25rem .5rem;cursor:pointer;font-size:.8rem;color:var(--muted)">Share</button>
 	</div>
 </div>
@@ -582,7 +594,13 @@ func (s *Server) handleAdminEditor(w http.ResponseWriter, r *http.Request, site 
 <script>
 const slug='` + site.Slug + `';
 const userRole='` + userRole + `';
-const ownDomain=` + func() string { if ownDomain { return "true" } else { return "false" } }() + `;
+const ownDomain=` + func() string {
+		if ownDomain {
+			return "true"
+		} else {
+			return "false"
+		}
+	}() + `;
 var _etags={};
 function _etagFor(file){return _etags[file]||'';}
 function _handleSaveResponse(r,file){return r.json().then(function(d){
@@ -930,8 +948,8 @@ func (s *Server) handleAdminAPIFiles(w http.ResponseWriter, r *http.Request, sit
 
 		isMarkdown := strings.HasSuffix(entry.Name(), ".md")
 		files = append(files, map[string]interface{}{
-			"name":       entry.Name(),
-			"path":       filepath.Join(queryPath, entry.Name()),
+			"name":        entry.Name(),
+			"path":        filepath.Join(queryPath, entry.Name()),
 			"is_markdown": isMarkdown,
 		})
 	}
@@ -969,7 +987,7 @@ func (s *Server) handleAdminAPIFileRead(w http.ResponseWriter, r *http.Request, 
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"content": string(content),
+		"content":     string(content),
 		"is_markdown": strings.HasSuffix(filePath, ".md"),
 	})
 }
@@ -1032,9 +1050,9 @@ func (s *Server) handleAPIUsers(w http.ResponseWriter, r *http.Request) {
 
 		userRepo := db.NewUserRepository()
 		user := &db.User{
-			ID:   generateID(),
+			ID:    generateID(),
 			Email: payload.Email,
-			Role: payload.Role,
+			Role:  payload.Role,
 		}
 
 		if err := userRepo.Create(user, payload.Password); err != nil {
@@ -1170,9 +1188,9 @@ func (s *Server) handleAPISiteAdmin(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success":   true,
-			"admin_url": adminURL,
-			"token":     token,
+			"success":    true,
+			"admin_url":  adminURL,
+			"token":      token,
 			"expires_at": expiresAt,
 		})
 		return
@@ -1190,9 +1208,9 @@ func (s *Server) handleAPISiteAdmin(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success":   true,
-			"admin_url": adminURL,
-			"token":     token.Token,
+			"success":    true,
+			"admin_url":  adminURL,
+			"token":      token.Token,
 			"created_at": token.CreatedAt,
 			"expires_at": token.ExpiresAt,
 		})
@@ -1213,9 +1231,9 @@ func (s *Server) handleAPISiteAdmin(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success":   true,
-			"admin_url": adminURL,
-			"token":     newToken,
+			"success":    true,
+			"admin_url":  adminURL,
+			"token":      newToken,
 			"expires_at": expiresAt,
 		})
 		return

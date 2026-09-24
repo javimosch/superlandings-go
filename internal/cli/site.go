@@ -133,8 +133,8 @@ var siteVersionCreateCmd = &cobra.Command{
 		}
 
 		success("Version created successfully", map[string]interface{}{
-			"version": createdVersion.Version,
-			"path":    createdVersion.Path,
+			"version":  createdVersion.Version,
+			"path":     createdVersion.Path,
 			"isActive": createdVersion.IsActive,
 		})
 	},
@@ -232,7 +232,7 @@ var siteWriteCmd = &cobra.Command{
 }
 
 var (
-	siteSnapshotName string
+	siteSnapshotName  string
 	siteVersionTarget string
 )
 
@@ -314,7 +314,6 @@ var siteVersionPruneCmd = &cobra.Command{
 		})
 	},
 }
-
 
 func init() {
 	siteListCmd.Flags().String("target", "", "Remote target (host:port)")

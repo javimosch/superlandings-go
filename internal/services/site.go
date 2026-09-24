@@ -112,12 +112,12 @@ func (s *SiteService) CreateVersion(siteID string, req CreateVersionRequest) (*d
 
 	// Create version record
 	version := &db.SiteVersion{
-		ID:      uuid.New().String(),
-		SiteID:  site.ID,
-		Version: req.Version,
-		Path:    filepath.Join("sites", site.Slug, req.Version),
-		Comment: req.Comment,
-		Author:  req.Author,
+		ID:       uuid.New().String(),
+		SiteID:   site.ID,
+		Version:  req.Version,
+		Path:     filepath.Join("sites", site.Slug, req.Version),
+		Comment:  req.Comment,
+		Author:   req.Author,
 		IsActive: false,
 	}
 

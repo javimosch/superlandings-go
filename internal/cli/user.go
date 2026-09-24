@@ -208,7 +208,6 @@ var userCreateRemote func(string, *cobra.Command)
 var userPasswordRemote func(string, []string, *cobra.Command)
 var userGrantRemote func(string, []string, *cobra.Command)
 
-
 // user revoke
 var userRevokeCmd = &cobra.Command{
 	Use:   "revoke <site> <email>",
@@ -247,8 +246,6 @@ var userRevokeCmd = &cobra.Command{
 		})
 	},
 }
-
-
 
 var (
 	grantBulkSites string
@@ -326,7 +323,6 @@ var userGrantBulkCmd = &cobra.Command{
 		writeJSON(result)
 	},
 }
-
 
 func init() {
 	userListCmd.Flags().String("target", "", "Remote target (host:port)")

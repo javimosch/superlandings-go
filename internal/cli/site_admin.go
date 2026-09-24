@@ -58,7 +58,7 @@ var siteAdminCreateCmd = &cobra.Command{
 		writeJSON(map[string]interface{}{
 			"version": "1.0", "success": true,
 			"admin_url": fmt.Sprintf("/admin/%s/%s", args[0], token),
-			"token": token,
+			"token":     token,
 		})
 	},
 }
@@ -98,8 +98,8 @@ var siteAdminViewCmd = &cobra.Command{
 
 		writeJSON(map[string]interface{}{
 			"version": "1.0", "success": true,
-			"admin_url": fmt.Sprintf("/admin/%s/%s", args[0], adminToken.Token),
-			"token":     adminToken.Token,
+			"admin_url":  fmt.Sprintf("/admin/%s/%s", args[0], adminToken.Token),
+			"token":      adminToken.Token,
 			"created_at": adminToken.CreatedAt,
 			"expires_at": adminToken.ExpiresAt,
 		})

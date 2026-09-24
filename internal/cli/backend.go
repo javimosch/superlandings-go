@@ -117,7 +117,6 @@ var backendStatusCmd = &cobra.Command{
 	},
 }
 
-
 var backendInstallCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install systemd service for boot persistence",
@@ -142,7 +141,6 @@ var backendUninstallCmd = &cobra.Command{
 		success("Systemd service uninstalled", nil)
 	},
 }
-
 
 func init() {
 	backendStartCmd.Flags().Int("port", 8080, "Port for HTTP server")
@@ -247,6 +245,7 @@ func stopAndRemoveSystemdService() error {
 	os.Remove("/etc/systemd/system/sl-cli.service")
 	return exec.Command("systemctl", "daemon-reload").Run()
 }
+
 const serviceTmpl = `[Unit]
 Description=SuperLandings CLI Daemon
 After=network.target

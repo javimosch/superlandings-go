@@ -155,11 +155,11 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 	if activeVersion == nil && len(versions) > 0 {
 		activeVersion = &versions[0]
 	}
-	
+
 	if activeVersion == nil {
 		return fmt.Errorf("no valid version found")
 	}
-	
+
 	version := activeVersion.Version
 
 	// Export site metadata
@@ -198,7 +198,7 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 	// Ensure site and version exist on remote before import
 	ensureSiteCmd := fmt.Sprintf("sl-cli site create --name '%s' --slug %s 2>/dev/null || true", site.Name, siteSlug)
 	ensureVersionCmd := fmt.Sprintf("sl-cli site version create %s --version %s --comment 'Synced from local' 2>/dev/null || true", siteSlug, version)
-	
+
 	sshArgs := []string{}
 	if target.Key != "" {
 		sshArgs = append(sshArgs, "-i", target.Key, "-o", "IdentitiesOnly=yes")
@@ -206,7 +206,7 @@ func (s *SyncService) Sync(siteSlug string, target SyncTarget) error {
 	if target.Port != 22 {
 		sshArgs = append(sshArgs, "-p", fmt.Sprintf("%d", target.Port))
 	}
-	
+
 	ensureArgs := append(sshArgs, fmt.Sprintf("%s@%s", target.User, target.Host), ensureSiteCmd+"; "+ensureVersionCmd)
 	ensureExecCmd := exec.Command("ssh", ensureArgs...)
 	if output, err := ensureExecCmd.CombinedOutput(); err != nil {

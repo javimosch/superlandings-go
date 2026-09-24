@@ -1,16 +1,16 @@
 package server
 
 import (
-	"strconv"
-	"net"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -219,9 +219,9 @@ func (s *Server) handleAPISites(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	dnsService := services.NewDNSService(s.cfg)
 
 	// Convert to JSON manually to avoid extra dependencies
@@ -262,18 +262,18 @@ func (s *Server) handleAPISite(w http.ResponseWriter, r *http.Request) {
 	if len(parts) > 1 {
 		action = parts[1]
 	}
-	
+
 	// Check for nested actions (e.g., versions/switch)
 	nestedAction := ""
 	if len(parts) > 2 {
 		nestedAction = parts[2]
 	}
-	
+
 	if action == "versions" && nestedAction == "switch" {
 		s.handleAPISiteVersionSwitch(w, r, slug)
 		return
 	}
-	
+
 	switch action {
 	case "versions":
 		s.handleAPISiteVersions(w, r, slug)
@@ -315,7 +315,7 @@ func (s *Server) handleAPISiteDetails(w http.ResponseWriter, r *http.Request, sl
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	// Find site by slug
 	var site *db.Site
 	for _, s := range sites {
@@ -324,12 +324,12 @@ func (s *Server) handleAPISiteDetails(w http.ResponseWriter, r *http.Request, sl
 			break
 		}
 	}
-	
+
 	if site == nil {
 		http.Error(w, "Site not found", http.StatusNotFound)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json := fmt.Sprintf(`{"slug":"%s","name":"%s"}`,
 		site.Slug, site.Name)
@@ -343,7 +343,7 @@ func (s *Server) handleAPISiteVersions(w http.ResponseWriter, r *http.Request, s
 			http.Error(w, "Site not found", http.StatusNotFound)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json := "{\"versions\":["
 		for i, v := range versions {
@@ -357,43 +357,43 @@ func (s *Server) handleAPISiteVersions(w http.ResponseWriter, r *http.Request, s
 		w.Write([]byte(json))
 		return
 	}
-	
+
 	if r.Method == "POST" {
 		var payload struct {
 			Version string `json:"version"`
 			Comment string `json:"comment"`
 			Author  string `json:"author"`
 		}
-		
+
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		
+
 		if payload.Version == "" {
 			http.Error(w, "version is required", http.StatusBadRequest)
 			return
 		}
-		
+
 		req := services.CreateVersionRequest{
 			Version: payload.Version,
 			Comment: payload.Comment,
 			Author:  payload.Author,
 		}
-		
+
 		createdVersion, err := s.siteService.CreateVersion(slug, req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json := fmt.Sprintf(`{"version":"%s","comment":"%s","is_active":%t,"path":"%s"}`,
 			createdVersion.Version, createdVersion.Comment, createdVersion.IsActive, createdVersion.Path)
 		w.Write([]byte(json))
 		return
 	}
-	
+
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
@@ -405,7 +405,7 @@ func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug 
 		w.Write([]byte(`{"success":false,"error":"method not allowed"}`))
 		return
 	}
-	
+
 	// Check if sync target is configured
 	if s.cfg.SyncTargetHost == "" {
 		w.Header().Set("Content-Type", "application/json")
@@ -413,7 +413,7 @@ func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug 
 		w.Write([]byte(`{"success":false,"error":"sync target not configured on daemon"}`))
 		return
 	}
-	
+
 	// Check if site exists
 	sites, err := s.siteService.List()
 	if err != nil {
@@ -422,7 +422,7 @@ func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug 
 		w.Write([]byte(`{"success":false,"error":"failed to list sites"}`))
 		return
 	}
-	
+
 	siteExists := false
 	for _, site := range sites {
 		if site.Slug == slug {
@@ -430,14 +430,14 @@ func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug 
 			break
 		}
 	}
-	
+
 	if !siteExists {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte(`{"success":false,"error":"site not found"}`))
 		return
 	}
-	
+
 	// Trigger sync service
 	syncService := services.NewSyncService(s.cfg)
 	syncTarget := services.SyncTarget{
@@ -446,14 +446,14 @@ func (s *Server) handleAPISiteSync(w http.ResponseWriter, r *http.Request, slug 
 		Port: s.cfg.SyncTargetPort,
 		Key:  s.cfg.SyncTargetKey,
 	}
-	
+
 	if err := syncService.Sync(slug, syncTarget); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(fmt.Sprintf(`{"success":false,"error":"sync failed: %s"}`, err.Error())))
 		return
 	}
-	
+
 	// Return success
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"success":true,"message":"site synced successfully"}`))
@@ -466,7 +466,7 @@ func (s *Server) handleAPISiteDNS(w http.ResponseWriter, r *http.Request, slug s
 		http.Error(w, "Site not found", http.StatusNotFound)
 		return
 	}
-	
+
 	var site *db.Site
 	for _, s := range sites {
 		if s.Slug == slug {
@@ -474,14 +474,14 @@ func (s *Server) handleAPISiteDNS(w http.ResponseWriter, r *http.Request, slug s
 			break
 		}
 	}
-	
+
 	if site == nil {
 		http.Error(w, "Site not found", http.StatusNotFound)
 		return
 	}
-	
+
 	dnsService := services.NewDNSService(s.cfg)
-	
+
 	if r.Method == "GET" {
 		// List DNS entries
 		domains, err := dnsService.GetDomains(site.ID)
@@ -489,7 +489,7 @@ func (s *Server) handleAPISiteDNS(w http.ResponseWriter, r *http.Request, slug s
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		json := "{\"domains\":["
 		for i, d := range domains {
@@ -503,7 +503,7 @@ func (s *Server) handleAPISiteDNS(w http.ResponseWriter, r *http.Request, slug s
 		w.Write([]byte(json))
 		return
 	}
-	
+
 	if r.Method == "POST" {
 		// Parse request body
 		var payload struct {
@@ -512,12 +512,12 @@ func (s *Server) handleAPISiteDNS(w http.ResponseWriter, r *http.Request, slug s
 			Traefik bool   `json:"traefik"`
 			Action  string `json:"action"` // "setup" or "remove"
 		}
-		
+
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		
+
 		// Determine action from URL path
 		path := strings.TrimPrefix(r.URL.Path, "/sites/")
 		parts := strings.Split(path, "/")
@@ -525,39 +525,39 @@ func (s *Server) handleAPISiteDNS(w http.ResponseWriter, r *http.Request, slug s
 		if len(parts) > 2 {
 			action = parts[2]
 		}
-		
+
 		if action == "setup" {
 			if payload.Domain == "" || payload.IP == "" {
 				http.Error(w, "domain and ip are required", http.StatusBadRequest)
 				return
 			}
-			
+
 			if err := dnsService.SetupDNS(site.ID, slug, payload.Domain, payload.IP, s.cfg.ServerPort, payload.Traefik); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"success":true}`))
 			return
 		}
-		
+
 		if action == "remove" {
 			// RemoveDNS removes all DNS for a site via hotify-cli prune
 			if _, err := dnsService.RemoveDNS(slug, s.cfg.ServerPort); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"success":true}`))
 			return
 		}
-		
+
 		http.Error(w, "Invalid action", http.StatusBadRequest)
 		return
 	}
-	
+
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
@@ -565,17 +565,17 @@ func (s *Server) handleAPISiteVersionSwitch(w http.ResponseWriter, r *http.Reque
 	var payload struct {
 		Version string `json:"version"`
 	}
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	
+
 	if payload.Version == "" {
 		http.Error(w, "version is required", http.StatusBadRequest)
 		return
 	}
-	
+
 	versioning := services.NewVersioningService(s.cfg)
 	ver, err := versioning.Rollback(slug, payload.Version)
 	if err != nil {
@@ -783,26 +783,26 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		
+
 		// Check for Authorization header
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			http.Error(w, "Unauthorized: missing Authorization header", http.StatusUnauthorized)
 			return
 		}
-		
+
 		// Check Bearer token format
 		if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
 			http.Error(w, "Unauthorized: invalid Authorization header format", http.StatusUnauthorized)
 			return
 		}
-		
+
 		token := authHeader[7:]
 		if token != s.cfg.AuthToken {
 			http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
 			return
 		}
-		
+
 		next(w, r)
 	}
 }

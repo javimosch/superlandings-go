@@ -31,9 +31,9 @@ func LoadCLIConfig() (*CLIConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	configPath := filepath.Join(homeDir, ".superlandings", cliConfigFile)
-	
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -42,31 +42,31 @@ func LoadCLIConfig() (*CLIConfig, error) {
 		}
 		return nil, err
 	}
-	
+
 	var config CLIConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-	
+
 	return &config, nil
 }
 
 func SaveCLIConfig(config *CLIConfig) error {
 	cliConfigMu.Lock()
 	defer cliConfigMu.Unlock()
-	
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
-	
+
 	configPath := filepath.Join(homeDir, ".superlandings", cliConfigFile)
-	
+
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
 	}
-	
+
 	return os.WriteFile(configPath, data, 0600)
 }
 
@@ -75,13 +75,13 @@ func GetDefaultTarget() (*Target, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	for _, target := range config.Targets {
 		if target.Default {
 			return &target, nil
 		}
 	}
-	
+
 	return nil, fmt.Errorf("no default target configured")
 }
 
@@ -90,13 +90,13 @@ func GetTarget(name string) (*Target, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	for _, target := range config.Targets {
 		if target.Name == name {
 			return &target, nil
 		}
 	}
-	
+
 	return nil, fmt.Errorf("target '%s' not found", name)
 }
 
@@ -105,7 +105,7 @@ func AddTarget(target Target) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Check if target already exists
 	for i, t := range config.Targets {
 		if t.Name == target.Name {
@@ -114,7 +114,7 @@ func AddTarget(target Target) error {
 			return SaveCLIConfig(config)
 		}
 	}
-	
+
 	// Add new target
 	config.Targets = append(config.Targets, target)
 	return SaveCLIConfig(config)
@@ -125,13 +125,13 @@ func RemoveTarget(name string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	for i, target := range config.Targets {
 		if target.Name == name {
 			config.Targets = append(config.Targets[:i], config.Targets[i+1:]...)
 			return SaveCLIConfig(config)
 		}
 	}
-	
+
 	return fmt.Errorf("target '%s' not found", name)
 }

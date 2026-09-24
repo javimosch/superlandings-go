@@ -116,12 +116,12 @@ func Status(cfg *config.Config) (bool, int, error) {
 func StartServer(cfg *config.Config, port int) error {
 	// Create server
 	srv := server.NewServer(cfg)
-	
+
 	// Start server
 	if err := srv.Start(port); err != nil {
 		log.Fatalf("Server error: %v", err)
 		return err
 	}
-	
+
 	return nil
 }

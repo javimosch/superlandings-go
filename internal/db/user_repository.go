@@ -181,10 +181,10 @@ func (r *UserRepository) RevokeSiteAccess(siteID, userID string) error {
 
 // UserSiteInfo holds a site + role for dashboard listing
 type UserSiteInfo struct {
-	SiteID   string `json:"siteId"`
-	Slug     string `json:"slug"`
-	Name     string `json:"name"`
-	Role     string `json:"role"`
+	SiteID string `json:"siteId"`
+	Slug   string `json:"slug"`
+	Name   string `json:"name"`
+	Role   string `json:"role"`
 }
 
 // GetUserSites returns all sites a user has access to

@@ -21,9 +21,9 @@ func initializeDB() error {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "sl-cli",
-	Short: "SuperLandings CLI - Manage static sites with versioning",
-	Long:  `SuperLandings CLI is a tool for managing static sites with version control, Go templates, assets, blog, forms, and domain-aware serving.`,
+	Use:               "sl-cli",
+	Short:             "SuperLandings CLI - Manage static sites with versioning",
+	Long:              `SuperLandings CLI is a tool for managing static sites with version control, Go templates, assets, blog, forms, and domain-aware serving.`,
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 }
 
