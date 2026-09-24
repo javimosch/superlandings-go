@@ -1449,7 +1449,7 @@ function switchAccount(){
 	if(list.style.display==='block'){list.style.display='none';return;}
 	var accts=JSON.parse(localStorage.getItem('sl_accounts')||'[]');
 	if(!accts.length){list.innerHTML='<p style="color:var(--muted);font-size:.85rem">No saved accounts. Log in to save one.</p>';list.style.display='block';return;}
-	list.innerHTML='<h3 style="font-size:.85rem;margin:0 0 .5rem;color:var(--muted)">Saved accounts</h3>'+accts.map(function(a,i){return '<button onclick="useAccount('+i+')" style="display:block;width:100%;text-align:left;padding:.4rem .6rem;border:none;background:transparent;border-radius:4px;cursor:pointer;font-size:.9rem;color:var(--text)">'+a.e+'</button>';}).join('');
+	list.innerHTML='<h3 style="font-size:.85rem;margin:0 0 .5rem;color:var(--muted)">Saved accounts</h3>'+accts.map(function(a,i){return '<button onclick="useAccount('+i+')" style="display:block;width:100%%;text-align:left;padding:.4rem .6rem;border:none;background:transparent;border-radius:4px;cursor:pointer;font-size:.9rem;color:var(--text)">'+a.e+'</button>';}).join('');
 	list.style.display='block';
 }
 function useAccount(i){
